@@ -97,7 +97,53 @@ Cruzando el calendario con los onces de la jornada, cada partido de la jornada 4
 
 ## Registro de la observación en directo
 
-Pendiente de completar con el resultado del sondeo iniciado a las 20:05 UTC.
+Sondeo de una lectura por minuto durante un partido en juego y la hora y media siguiente, el 5 de septiembre de 2026. Se registraron los puntos de los 8 managers y de cada uno de sus titulares.
+
+### Durante el partido
+
+| Hora UTC | Qué se observó |
+| --- | --- |
+| 20:08 | Knassim baja de 21 a 20 puntos |
+| 20:09 | TekilaTime sube de 11 a 12 |
+| 20:15 | TekilaTime sube a 13, por su portero Leo Román |
+| 20:21 | CEstJoel sube a 19, por su defensa Quagliata |
+| 20:26 | Knassim sube a 21, por su defensa Noubi |
+| 20:31 | CEstJoel baja a 18 |
+| 20:36 | Gol en el partido: el marcador pasa de 1-1 a 2-1 |
+| 20:37 | Tres managers pierden puntos por el gol encajado. Un defensa baja a **-1** |
+| 20:41 | Segundo gol: 2-2 |
+| 20:50 | Tercer gol: 2-3 |
+| 20:51 | Un centrocampista baja a **-2** |
+
+En una hora hubo cambios en 11 de las lecturas. La puntuación se mueve constantemente y en los dos sentidos.
+
+### Después del pitido final
+
+El partido pasó a estado finalizado a las **20:56 UTC**.
+
+| Hora UTC | Qué se observó |
+| --- | --- |
+| 20:57 a 20:59 | Sin cambios |
+| 21:00 | Tres managers suben. Cuatro futbolistas cambian de puntuación |
+| 21:01 | Los mismos tres managers vuelven a subir. Seis futbolistas cambian |
+| 21:02 a 21:49 | **Ningún cambio en 48 minutos seguidos** |
+
+**Conclusión medida: los ajustes finales llegaron 4 y 5 minutos después del pitido final, y a partir de ahí la puntuación quedó fija.** Los 15 minutos de espera que indicó el usuario por experiencia propia son un margen holgado y correcto.
+
+### Puntuaciones negativas
+
+Se confirmó que existen. Un defensa pasó de 1 a -1 tras encajar un gol, y un centrocampista llegó a -2. El sistema debe aceptar números por debajo de cero sin tratarlos como error de lectura.
+
+### Atribución de la causa
+
+El sondeo demuestra que la causa de cada cambio es identificable, no hay que suponerla. Ejemplo registrado a las 20:15 UTC:
+
+```
+TOTAL TekilaTime: 12 -> 13
+  TekilaTime/Leo Román: 2 -> 3
+```
+
+Sube el manager y se sabe qué futbolista lo ha provocado. Esa es la base del comentario que el bot publica en el grupo.
 
 ## Evidencia técnica sanitizada
 

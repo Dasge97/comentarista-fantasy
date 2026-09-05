@@ -96,12 +96,19 @@ Así que el dinero de los demás no se lee, se calcula: presupuesto inicial, men
 
 El registro de actividad de la liga lo hace posible. Contiene 444 movimientos y llega hasta el 30 de julio de 2026, repartidos en tres páginas. Es el histórico completo desde el arranque de la liga.
 
-Quedan dos cosas por resolver antes de dar una cifra:
+Los tipos de movimiento quedaron identificados el 5 de septiembre de 2026. El método fue cruzar los movimientos recientes con la plantilla actual de cada manager: si tras el movimiento el futbolista sigue en la plantilla, fue una compra; si ya no está, fue una venta. Los tres tipos con dinero dieron un resultado limpio, sin un solo caso contrario.
 
-- Averiguar cuál es el presupuesto inicial con el que empieza cada manager.
-- Descifrar qué significa cada tipo de movimiento. Se observaron los tipos 1, 4, 5, 6, 7, 9, 31 y 33. Los tipos 31 y 33 son la mayoría, con 180 y 176 apariciones, y probablemente son compra y venta.
+| Tipo | Qué es | Efecto en el dinero |
+| --- | --- | --- |
+| 1 | Compra a otro manager, con cláusula o acuerdo | Paga el comprador, cobra el vendedor |
+| 6 | Premio de la jornada | Ingreso |
+| 31 | Compra al mercado | Gasto |
+| 33 | Venta | Ingreso |
+| 4, 5, 7, 9 | Cláusula, evento de liga, sin alineación y entrada en la liga | Ninguno |
 
-La cifra será una estimación mientras no se validen las dos cosas. Hay una forma de comprobarla: calcular el dinero de la cuenta de servicio con el mismo método y compararlo con el que devuelve la API, que sí se puede leer.
+Falta una sola cosa: el presupuesto con el que empieza cada manager. Es una constante igual para todos, así que las diferencias de dinero entre managers ya son exactas aunque no se conozca.
+
+La web resuelve el hueco con una calibración. El usuario mira su dinero real en la aplicación oficial y lo escribe una vez; con esa cifra y los movimientos registrados se despeja el presupuesto de partida.
 
 ### Seguridad
 
@@ -272,19 +279,19 @@ Un manager ya elegido no aparece disponible para otro. Quien se equivocó lo sue
 
 ## Fases de trabajo
 
-| Fase | Trabajo | Cómo se sabe que está hecha |
+| Fase | Trabajo | Estado |
 | --- | --- | --- |
-| 1 | Lector de Fantasy como módulo, con renovación de sesión | Lee los 8 managers y sobrevive a la caducidad del token |
-| 2 | Almacén en SQLite, histórico y ciclo de sondeo según el calendario | El proceso se reinicia y no pierde el estado. El histórico registra un cambio de puntos, un fichaje y una variación de precio. |
-| 3 | Bot de Telegram con vinculación y rectificación | Los 8 amigos pueden elegir su manager y cambiarlo |
-| 4 | Detección de hechos y envío por privado | Un gol llega al manager correcto, una sola vez |
-| 5 | Resumen de final de partido por privado | Cada manager con futbolistas en el partido recibe su resumen |
-| 6 | Comentario de grupo con el modelo de lenguaje | Un adelantamiento confirmado produce un comentario con el motivo correcto |
-| 7 | API HTTP y web con entrada del administrador | El usuario entra con contraseña y ve el estado y las tablas |
-| 8 | Web: configuración, claves y usuarios | Las claves se guardan desde la web y se pueden dar altas |
-| 9 | Web: páginas de la liga, dinero, precios y movimientos | Se ve la clasificación, la evolución de precios y el dinero de cada uno |
-| 10 | Acceso de los participantes desde el bot y notificaciones desde la web | Un amigo entra con el enlace del bot y solo ve lo suyo |
-| 11 | Prueba en una jornada real | El grupo lo usa y se ajusta el volumen de mensajes |
+| 1 | Lector de Fantasy como módulo, con renovación de sesión | Hecha. Lee los 8 managers y renueva sin contraseña. |
+| 2 | Almacén en SQLite, histórico y ciclo de sondeo según el calendario | Hecha. 444 movimientos, 836 valores diarios y 117 fichas de propiedad guardados. |
+| 3 | Bot de Telegram con vinculación y rectificación | Hecha. Falta el token para probarlo con gente real. |
+| 4 | Detección de hechos y envío por privado | Hecha. Falta el token. |
+| 5 | Resumen de final de partido por privado | Hecha. Falta el token. |
+| 6 | Comentario de grupo con el modelo de lenguaje | Hecha. Falta la clave de Anthropic. |
+| 7 | API HTTP y web con entrada del administrador | Hecha. |
+| 8 | Web: configuración, claves y usuarios | Hecha. |
+| 9 | Web: páginas de la liga, dinero, precios y movimientos | Hecha. |
+| 10 | Acceso de los participantes desde el bot y notificaciones desde la web | Hecha. |
+| 11 | Prueba en una jornada real | Pendiente. Es lo único que queda. |
 
 Las fases 1 y 2 son la base. La fase 3 se puede hacer en paralelo porque no depende de las anteriores. Las fases 4, 5 y 6 son las que producen mensajes.
 
