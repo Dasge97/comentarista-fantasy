@@ -193,6 +193,10 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     res.json(await servicio.probarRedactor());
   });
 
+  app.get('/api/acciones/modelos', identificado, soloAdministrador, async (_req, res) => {
+    res.json(await servicio.modelosDelProveedor());
+  });
+
   app.get('/api/incidencias', identificado, soloAdministrador, (_req, res) => {
     res.json(almacen.ultimasIncidencias(200));
   });

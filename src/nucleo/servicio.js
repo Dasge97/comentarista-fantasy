@@ -55,11 +55,19 @@ export class Servicio {
     const password = this.#config.obtener('fantasy_password');
     this.#lector = email && password ? new LectorFantasy({ email, password, ficheroSesion: this.#ficheroSesion }) : null;
     this.#telegram.cambiarToken(this.#config.obtener('telegram_token'));
-    this.#redactor.configurar(
-      this.#config.obtener('anthropic_api_key'),
-      this.#config.obtener('anthropic_base_url'),
-      this.#config.obtener('anthropic_modelo'),
-    );
+    this.#redactor.configurar({
+      proveedor: this.#config.obtener('proveedor_modelo'),
+      anthropic: {
+        clave: this.#config.obtener('anthropic_api_key'),
+        base: this.#config.obtener('anthropic_base_url'),
+        modelo: this.#config.obtener('anthropic_modelo'),
+      },
+      openai: {
+        clave: this.#config.obtener('openai_api_key'),
+        base: this.#config.obtener('openai_base_url'),
+        modelo: this.#config.obtener('openai_modelo'),
+      },
+    });
   }
 
   get lector() {
@@ -542,11 +550,20 @@ export class Servicio {
     const presupuesto = this.#config.numero('presupuesto_inicial');
     const managers = this.#almacen.managers();
     const calculo = calcularDinero(this.#almacen.todaLaActividad(), presupuesto, managers.map((m) => m.manager_id));
-    return calculo.map((c) => ({
-      ...c,
-      nombre: managers.find((m) => m.manager_id === c.managerId)?.nombre,
-      sinPresupuesto: !presupuesto,
-    }));
+    return calculo.map((c) => {
+      const manager = managers.find((m) => m.manager_id === c.managerId);
+      const valorEquipo = manager?.valor_equipo ?? null;
+      return {
+        ...c,
+        nombre: manager?.nombre,
+        valorEquipo,
+        // Dinero más lo que valen sus futbolistas. Es la forma justa de
+        // comparar a dos managers: uno puede tener poco dinero porque lo
+        // tiene todo invertido en la plantilla.
+        patrimonio: valorEquipo == null ? null : c.dinero + valorEquipo,
+        sinPresupuesto: !presupuesto,
+      };
+    });
   }
 
   /**
@@ -574,6 +591,11 @@ export class Servicio {
   /** Comprueba que la clave y la dirección del modelo funcionan. */
   probarRedactor() {
     return this.#redactor.comprobar();
+  }
+
+  /** Modelos que ofrece el proveedor configurado. */
+  modelosDelProveedor() {
+    return this.#redactor.modelosDisponibles();
   }
 
   /** Lectura forzada desde el panel de administración. */

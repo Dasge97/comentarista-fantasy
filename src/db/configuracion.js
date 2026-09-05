@@ -16,13 +16,18 @@ export const AJUSTES = {
   // Claves. Se rellenan desde el panel de administración.
   telegram_token: { defecto: '', secreto: true, titulo: 'Token del bot de Telegram' },
   telegram_grupo: { defecto: '', secreto: false, titulo: 'Identificador del grupo de Telegram' },
-  anthropic_api_key: { defecto: '', secreto: true, titulo: 'Clave de la API de Anthropic' },
-  anthropic_base_url: {
-    defecto: '',
-    secreto: false,
-    titulo: 'Dirección base de la API, si no es la oficial de Anthropic',
-  },
-  anthropic_modelo: { defecto: 'claude-opus-5', secreto: false, titulo: 'Modelo que escribe los comentarios' },
+  // Quién escribe los comentarios del grupo. Las claves de los dos
+  // proveedores se guardan por separado, para poder cambiar de uno a otro
+  // sin tener que volver a escribirlas.
+  proveedor_modelo: { defecto: 'anthropic', secreto: false, titulo: 'Proveedor del modelo: anthropic u openai' },
+
+  anthropic_api_key: { defecto: '', secreto: true, titulo: 'Clave de Anthropic' },
+  anthropic_base_url: { defecto: '', secreto: false, titulo: 'Dirección base de Anthropic, si no es la oficial' },
+  anthropic_modelo: { defecto: 'claude-opus-5', secreto: false, titulo: 'Modelo de Anthropic' },
+
+  openai_api_key: { defecto: '', secreto: true, titulo: 'Clave de OpenAI' },
+  openai_base_url: { defecto: '', secreto: false, titulo: 'Dirección base de OpenAI, si no es la oficial' },
+  openai_modelo: { defecto: '', secreto: false, titulo: 'Modelo de OpenAI' },
   fantasy_email: { defecto: '', secreto: false, titulo: 'Correo de la cuenta de servicio' },
   fantasy_password: { defecto: '', secreto: true, titulo: 'Contraseña de la cuenta de servicio' },
 

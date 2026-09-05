@@ -143,15 +143,22 @@ export function Dinero() {
       ) : (
         <Tarjeta>
           <Tabla
-            filas={[...(datos || [])].sort((a, b) => b.dinero - a.dinero)}
+            filas={[...(datos || [])].sort((a, b) => (b.patrimonio ?? b.dinero) - (a.patrimonio ?? a.dinero))}
             columnas={[
               { titulo: 'Manager', valor: (f) => f.nombre },
               { titulo: 'Dinero', valor: (f) => millones(f.dinero), numerica: true },
+              { titulo: 'Valor del equipo', valor: (f) => millones(f.valorEquipo), numerica: true },
+              { titulo: 'Dinero + equipo', valor: (f) => millones(f.patrimonio), numerica: true },
               { titulo: 'Gastado', valor: (f) => millones(f.gastado), numerica: true },
               { titulo: 'Ingresado', valor: (f) => millones(f.ingresado), numerica: true },
               { titulo: 'Movimientos', valor: (f) => f.movimientos, numerica: true },
             ]}
           />
+          <p className="suave" style={{ fontSize: 13, marginBottom: 0 }}>
+            El <b>valor del equipo</b> es lo que valen sus futbolistas, y ese sí lo da Fantasy de todos. Sumado al
+            dinero da lo que tiene cada uno en total: alguien puede ir corto de dinero simplemente porque lo tiene
+            todo metido en la plantilla.
+          </p>
         </Tarjeta>
       )}
 

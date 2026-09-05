@@ -255,4 +255,12 @@ export const MIGRACIONES = [
       ALTER TABLE historial_mercado ADD COLUMN clausula INTEGER;
     `,
   },
+  {
+    // El valor de la plantilla sí se lee de los rivales, al contrario que el
+    // dinero. Junto con el dinero da el patrimonio de cada manager.
+    nombre: '005-valor-del-equipo',
+    sql: `
+      ALTER TABLE managers ADD COLUMN valor_equipo INTEGER;
+    `,
+  },
 ];

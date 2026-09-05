@@ -23,17 +23,21 @@ export class Almacen {
 
   guardarManagers(managers, managerServicio) {
     const sql = this.#db.prepare(`
-      INSERT INTO managers (manager_id, equipo_id, nombre, es_servicio, actualizado_en)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO managers (manager_id, equipo_id, nombre, es_servicio, valor_equipo, actualizado_en)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(manager_id) DO UPDATE SET
         equipo_id = excluded.equipo_id,
         nombre = excluded.nombre,
         es_servicio = excluded.es_servicio,
+        valor_equipo = COALESCE(excluded.valor_equipo, managers.valor_equipo),
         actualizado_en = excluded.actualizado_en
     `);
     enTransaccion(this.#db, () => {
       for (const m of managers) {
-        sql.run(m.managerId, m.equipoId, m.managerNombre || m.nombre, m.managerId === managerServicio ? 1 : 0, ahora());
+        sql.run(
+          m.managerId, m.equipoId, m.managerNombre || m.nombre,
+          m.managerId === managerServicio ? 1 : 0, m.valorEquipo ?? null, ahora(),
+        );
       }
     });
   }

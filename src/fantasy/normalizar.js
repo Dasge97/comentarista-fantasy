@@ -114,6 +114,8 @@ export function normalizarClasificacion(respuesta) {
     equipoId: String(fila.team?.id),
     managerId: String(fila.team?.managerId ?? fila.team?.manager?.id),
     managerNombre: fila.team?.manager?.managerName || null,
+    // Lo que valen sus futbolistas. Se lee de rivales, al contrario que el dinero.
+    valorEquipo: fila.team?.teamValue != null ? Number(fila.team.teamValue) : null,
     observadoEn: new Date().toISOString(),
   }));
 }

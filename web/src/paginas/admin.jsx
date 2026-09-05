@@ -18,13 +18,23 @@ export function Estado() {
     }
   }
 
+  async function verModelos() {
+    setMensaje('Preguntando al proveedor…');
+    try {
+      const r = await api.modelosDisponibles();
+      setMensaje(r.ok ? `Modelos disponibles: ${r.modelos.join(', ')}` : `No se pudo consultar: ${r.motivo}`);
+    } catch (e) {
+      setMensaje(e.message);
+    }
+  }
+
   async function probarModelo() {
     setMensaje('Probando el modelo…');
     try {
       const r = await api.probarRedactor();
       setMensaje(
         r.ok
-          ? `El modelo responde. Modelo ${r.modelo}, contra ${r.base}. Ha contestado: «${r.texto}».`
+          ? `El modelo responde. Proveedor ${r.proveedor}, modelo ${r.modelo}, contra ${r.base}. Ha contestado: «${r.texto}».`
           : `El modelo no responde: ${r.motivo}`,
       );
     } catch (e) {
@@ -95,6 +105,9 @@ export function Estado() {
           </button>
           <button className="accion suave" onClick={probarModelo}>
             Probar el modelo que escribe
+          </button>
+          <button className="accion suave" onClick={verModelos}>
+            Ver modelos disponibles
           </button>
         </div>
         {mensaje ? <p className="suave">{mensaje}</p> : null}
@@ -184,10 +197,23 @@ export function Ajustes() {
         </Tarjeta>
 
         <Tarjeta titulo="Ajustes">
+          <p className="suave" style={{ marginTop: 0, fontSize: 13 }}>
+            El <b>proveedor del modelo</b> decide quién escribe los comentarios del grupo. Las claves de Anthropic y
+            de OpenAI se guardan por separado, así que puedes cambiar de uno a otro sin volver a escribirlas. Deja la
+            dirección base vacía para usar la API oficial del proveedor.
+          </p>
           {normales.map((a) => (
             <label key={a.clave}>
               <span>{a.titulo}</span>
-              {a.clave === 'tono' ? (
+              {a.clave === 'proveedor_modelo' ? (
+                <select
+                  value={cambios[a.clave] ?? a.valor ?? 'anthropic'}
+                  onChange={(e) => setCambios({ ...cambios, [a.clave]: e.target.value })}
+                >
+                  <option value="anthropic">Anthropic</option>
+                  <option value="openai">OpenAI</option>
+                </select>
+              ) : a.clave === 'tono' ? (
                 <textarea
                   value={cambios[a.clave] ?? a.valor ?? ''}
                   onChange={(e) => setCambios({ ...cambios, [a.clave]: e.target.value })}
