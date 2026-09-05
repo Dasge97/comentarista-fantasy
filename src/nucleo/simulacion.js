@@ -96,25 +96,27 @@ export class Simulacion {
     }
 
     // ---- Resumen de final de partido ----
-    const partidos = this.#almacen.partidosDeLaJornada(jornada);
+    // Solo se guardan los partidos de la jornada en curso, así que para una
+    // jornada pasada hay que pedir el calendario a Fantasy.
+    const partidos = await this.#partidosDe(jornada);
     let resumenHecho = false;
     for (const partido of partidos) {
       const resumen = resumenDePartido({
         alineacion,
-        equiposDelPartido: [partido.local_id, partido.visitante_id],
+        equiposDelPartido: [partido.localId, partido.visitanteId],
         jornada,
       });
       if (!resumen) continue;
       const texto = resumenPrivadoDePartido({
         resumen,
-        marcador: `${partido.goles_local ?? '?'}-${partido.goles_visitante ?? '?'}`,
+        marcador: `${partido.golesLocal ?? '?'}-${partido.golesVisitante ?? '?'}`,
       });
-      await avisar(destino, texto, `resumen del partido ${partido.local_id} contra ${partido.visitante_id}`);
+      await avisar(destino, texto, `resumen de un partido con ${resumen.jugadores.length} de tus futbolistas`);
       resumenHecho = true;
       break; // Con un partido de ejemplo basta para ver cómo queda.
     }
     if (!resumenHecho) {
-      await avisar(destino, 'No hay partidos guardados de esa jornada para hacer un resumen.', 'sin resumen');
+      await avisar(destino, 'No he encontrado ningún partido de esa jornada con futbolistas tuyos.', 'sin resumen');
     }
 
     // ---- Comentario de grupo ----
@@ -129,6 +131,25 @@ export class Simulacion {
 
     await avisar(destino, 'Fin de la simulación.', 'cierre');
     return { enviados, jornada, hechos: hechos.length };
+  }
+
+  /**
+   * Partidos de una jornada. Se piden a Fantasy porque la base de datos solo
+   * guarda los de la jornada en curso.
+   */
+  async #partidosDe(jornada) {
+    try {
+      return await this.#lector.calendario(jornada);
+    } catch {
+      // Si Fantasy no responde, se usa lo que haya guardado, adaptando los
+      // nombres de columna a los que devuelve el calendario.
+      return this.#almacen.partidosDeLaJornada(jornada).map((p) => ({
+        localId: p.local_id,
+        visitanteId: p.visitante_id,
+        golesLocal: p.goles_local,
+        golesVisitante: p.goles_visitante,
+      }));
+    }
   }
 
   /**
