@@ -46,6 +46,7 @@ export const api = {
 
   telegram: () => peticion('/telegram'),
   elegirGrupo: (chatId) => peticion('/telegram/grupo', { metodo: 'POST', cuerpo: { chatId } }),
+  simular: (datos) => peticion('/acciones/simular', { metodo: 'POST', cuerpo: datos }),
   notificar: (destino, texto) => peticion('/acciones/notificar', { metodo: 'POST', cuerpo: { destino, texto } }),
   calibrarDinero: (managerId, dineroReal) =>
     peticion('/acciones/calibrar-dinero', { metodo: 'POST', cuerpo: { managerId, dineroReal } }),

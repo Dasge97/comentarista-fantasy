@@ -3,6 +3,7 @@ import { adelantamientos, culpables, hechosDeJugador, resumenDePartido } from '.
 import { avisoDeHecho, datosParaElComentario, resumenPrivadoDePartido } from './mensajes.js';
 import { calcularDinero } from './dinero.js';
 import { hoy } from '../db/db.js';
+import { Simulacion } from './simulacion.js';
 
 const ESTADO_FINALIZADO = 7;
 const ESTADOS_EN_JUEGO = [3, 4];
@@ -600,6 +601,22 @@ export class Servicio {
       movimientoNeto: movimiento,
       managerId: String(managerId),
     };
+  }
+
+  /**
+   * Reproduce los mensajes de una jornada ya jugada, para ver cómo quedan
+   * sin esperar a que haya partido.
+   */
+  simular(opciones) {
+    if (!this.configurado) throw new Error('Faltan credenciales o identificador de liga.');
+    const simulacion = new Simulacion({
+      lector: this.#lector,
+      almacen: this.#almacen,
+      config: this.#config,
+      telegram: this.#telegram,
+      redactor: this.#redactor,
+    });
+    return simulacion.ejecutar(opciones);
   }
 
   /** Comprueba que la clave y la dirección del modelo funcionan. */

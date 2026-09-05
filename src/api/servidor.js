@@ -224,6 +224,23 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     res.json({ ok: true });
   });
 
+  app.post('/api/acciones/simular', identificado, soloAdministrador, async (req, res) => {
+    const { jornada, equipoId, destino, tambienAlGrupo } = req.body || {};
+    if (!jornada || !equipoId || !destino) {
+      return res.status(400).json({ error: 'Hacen falta la jornada, el manager y el chat de destino.' });
+    }
+    try {
+      res.json(await servicio.simular({
+        jornada: Number(jornada),
+        equipoId: String(equipoId),
+        destino: String(destino),
+        tambienAlGrupo: Boolean(tambienAlGrupo),
+      }));
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.get('/api/acciones/modelos', identificado, soloAdministrador, async (_req, res) => {
     res.json(await servicio.modelosDelProveedor());
   });
