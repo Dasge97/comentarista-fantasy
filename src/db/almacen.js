@@ -332,27 +332,45 @@ export class Almacen {
 
   // ---------- Partidos ----------
 
-  guardarPartidos(partidos, jornada) {
+  /**
+   * Guarda los partidos de una jornada.
+   *
+   * `finalizado_en` se escribe una sola vez, cuando el partido pasa a
+   * finalizado. No puede usarse `actualizado_en` para eso: cambia en cada
+   * lectura, así que nunca cumpliría la espera de quince minutos.
+   */
+  guardarPartidos(partidos, jornada, estadoFinalizado) {
     const sql = this.#db.prepare(`
-      INSERT INTO partidos (id, jornada, fecha, local_id, visitante_id, estado, goles_local, goles_visitante, actualizado_en)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO partidos (id, jornada, fecha, local_id, visitante_id, estado, goles_local, goles_visitante, actualizado_en, finalizado_en)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         estado = excluded.estado,
         goles_local = excluded.goles_local,
         goles_visitante = excluded.goles_visitante,
-        actualizado_en = excluded.actualizado_en
+        actualizado_en = excluded.actualizado_en,
+        finalizado_en = COALESCE(partidos.finalizado_en, excluded.finalizado_en)
     `);
     const cambios = [];
     enTransaccion(this.#db, () => {
       for (const p of partidos) {
-        const previo = this.#db.prepare('SELECT estado, goles_local, goles_visitante FROM partidos WHERE id = ?').get(p.id);
-        sql.run(p.id, jornada, p.fecha, p.localId, p.visitanteId, p.estadoBruto, p.golesLocal, p.golesVisitante, ahora());
+        const previo = this.#db
+          .prepare('SELECT estado, goles_local, goles_visitante, finalizado_en FROM partidos WHERE id = ?')
+          .get(p.id);
+        const finalizado = p.estadoBruto === estadoFinalizado ? previo?.finalizado_en || ahora() : previo?.finalizado_en || null;
+        sql.run(p.id, jornada, p.fecha, p.localId, p.visitanteId, p.estadoBruto, p.golesLocal, p.golesVisitante, ahora(), finalizado);
         if (previo && previo.estado !== p.estadoBruto) {
           cambios.push({ partidoId: p.id, estadoAntes: previo.estado, estadoAhora: p.estadoBruto });
         }
       }
     });
     return cambios;
+  }
+
+  /** Partidos que terminaron hace menos del margen indicado. */
+  partidosReciénTerminados(jornada, estadoFinalizado, desde) {
+    return this.#db
+      .prepare('SELECT * FROM partidos WHERE jornada = ? AND estado = ? AND finalizado_en IS NOT NULL AND finalizado_en >= ?')
+      .all(jornada, estadoFinalizado, desde);
   }
 
   partidosDeLaJornada(jornada) {
@@ -363,7 +381,8 @@ export class Almacen {
     return this.#db
       .prepare(`
         SELECT * FROM partidos
-        WHERE jornada = ? AND estado = ? AND resumen_enviado_en IS NULL AND actualizado_en <= ?
+        WHERE jornada = ? AND estado = ? AND resumen_enviado_en IS NULL
+          AND finalizado_en IS NOT NULL AND finalizado_en <= ?
       `)
       .all(jornada, estadoFinalizado, antesDe);
   }

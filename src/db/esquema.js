@@ -235,4 +235,13 @@ export const MIGRACIONES = [
       ALTER TABLE actividad ADD COLUMN jornada INTEGER;
     `,
   },
+  {
+    // Hace falta saber cuándo terminó un partido, no cuándo se leyó por
+    // última vez. La columna actualizado_en cambia en cada lectura, así que
+    // no sirve para medir los quince minutos de espera antes del resumen.
+    nombre: '003-momento-del-pitido-final',
+    sql: `
+      ALTER TABLE partidos ADD COLUMN finalizado_en TEXT;
+    `,
+  },
 ];

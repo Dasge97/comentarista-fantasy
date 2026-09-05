@@ -106,7 +106,7 @@ export class Servicio {
   async #unCiclo() {
     const jornada = await this.#jornadaActual();
     const partidos = await this.#actualizarPartidos(jornada.numero);
-    const ritmo = this.#decidirRitmo(partidos);
+    const ritmo = this.#decidirRitmo(partidos, jornada.numero);
     this.estado.ritmo = ritmo.nombre;
 
     if (ritmo.leerPuntuacion) {
@@ -133,7 +133,7 @@ export class Servicio {
 
   async #actualizarPartidos(jornada) {
     const calendario = await this.#lector.calendario(jornada);
-    this.#almacen.guardarPartidos(calendario, jornada);
+    this.#almacen.guardarPartidos(calendario, jornada, ESTADO_FINALIZADO);
     return calendario;
   }
 
@@ -143,7 +143,7 @@ export class Servicio {
    * Después del último partido se sigue leyendo un rato porque la puntuación
    * se mueve unos quince minutos más, según la experiencia del usuario.
    */
-  #decidirRitmo(partidos) {
+  #decidirRitmo(partidos, jornada) {
     const rapido = this.#config.numero('segundos_entre_lecturas') * 1000;
     const reposo = this.#config.numero('segundos_en_reposo') * 1000;
     const antelacion = this.#config.numero('minutos_antes_del_partido') * 60000;
@@ -154,11 +154,11 @@ export class Servicio {
       return { nombre: 'partido en juego', leerPuntuacion: true, esperaMs: rapido };
     }
 
-    const finRecientes = this.#almacen
-      .partidosDeLaJornada(partidos[0]?.jornada ?? 0)
-      .filter((p) => p.estado === ESTADO_FINALIZADO)
-      .map((p) => new Date(p.actualizado_en).getTime());
-    if (finRecientes.some((t) => ahora - t < estabilizacion)) {
+    // Tras el pitido final la puntuación sigue moviéndose unos minutos. Se
+    // mide desde el momento en que el partido pasó a finalizado, no desde la
+    // última lectura, que cambia cada minuto.
+    const desde = new Date(ahora - estabilizacion).toISOString();
+    if (this.#almacen.partidosReciénTerminados(jornada, ESTADO_FINALIZADO, desde).length > 0) {
       return { nombre: 'ajustando puntos tras el partido', leerPuntuacion: true, esperaMs: rapido };
     }
 
