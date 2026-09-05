@@ -193,6 +193,37 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     res.json(await servicio.probarRedactor());
   });
 
+  // ---------- Telegram ----------
+
+  app.get('/api/telegram', identificado, soloAdministrador, async (_req, res) => {
+    let bot = null;
+    try {
+      if (telegram.configurado) bot = await telegram.quienSoy();
+    } catch (error) {
+      bot = { error: error.message };
+    }
+    res.json({
+      bot,
+      grupoElegido: config.obtener('telegram_grupo'),
+      gruposVistos: almacen.gruposVistos(),
+      vinculaciones: usuarios.todasLasVinculaciones(),
+      publicarGrupo: config.activo('publicar_grupo'),
+      publicarPrivados: config.activo('publicar_privados'),
+      silenciado: config.activo('silenciado'),
+    });
+  });
+
+  app.post('/api/telegram/grupo', identificado, soloAdministrador, async (req, res) => {
+    const chatId = String(req.body?.chatId || '').trim();
+    if (!chatId) return res.status(400).json({ error: 'Falta el identificador del grupo.' });
+    config.poner('telegram_grupo', chatId);
+    // Se manda un mensaje de prueba: si el bot no puede escribir ahí, mejor
+    // saberlo ahora que la primera vez que alguien adelante a otro.
+    const resultado = await telegram.enviar(chatId, 'Listo. A partir de ahora comentaré aquí los cambios de puesto.');
+    if (!resultado.ok) return res.status(400).json({ error: `Guardado, pero no puedo escribir ahí: ${resultado.motivo}` });
+    res.json({ ok: true });
+  });
+
   app.get('/api/acciones/modelos', identificado, soloAdministrador, async (_req, res) => {
     res.json(await servicio.modelosDelProveedor());
   });

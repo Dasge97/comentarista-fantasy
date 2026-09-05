@@ -6,37 +6,34 @@
  * redacta el modelo de lenguaje, y estas plantillas son su respaldo.
  */
 
-const EMOJI = {
-  goals: '⚽',
-  goal_assist: '🅰️',
-  penalty_save: '🧤',
-  penalty_won: '🎯',
-  penalty_failed: '❌',
-};
-
 const escapar = (texto) =>
   String(texto ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** Aviso privado de un hecho de un futbolista propio. */
-export function avisoDeHecho({ hecho, futbolista, puntos }) {
+/**
+ * Aviso privado de un hecho de un futbolista propio.
+ *
+ * El texto sale de las plantillas que el administrador edita en la web. Los
+ * huecos son {jugador}, {puntos} y {que}. Si una plantilla se deja vacía, se
+ * usa una frase mínima para que el aviso llegue igualmente.
+ */
+export function avisoDeHecho({ hecho, futbolista, puntos, plantillas = {} }) {
   const nombre = escapar(futbolista);
-  const icono = EMOJI[hecho.tipo] || '📣';
+
+  const rellenar = (texto) =>
+    String(texto)
+      .replaceAll('{jugador}', nombre)
+      .replaceAll('{puntos}', puntos == null ? '—' : String(puntos))
+      .replaceAll('{que}', escapar(hecho.nombre === 'gol' ? 'el gol' : `la ${hecho.nombre}`));
 
   if (hecho.rectificacion) {
-    return `↩️ Corrección: a <b>${nombre}</b> le han quitado ${hecho.nombre === 'gol' ? 'el gol' : `la ${hecho.nombre}`}. Lo tienes en tu once.`;
+    const plantilla = plantillas.correccion || '↩️ Corrección: a <b>{jugador}</b> le han quitado {que}.';
+    return rellenar(plantilla);
   }
 
-  const frases = {
-    goals: `${icono} <b>${nombre}</b> ha marcado. Lo tienes en tu once.`,
-    goal_assist: `${icono} <b>${nombre}</b> ha dado una asistencia. Lo tienes en tu once.`,
-    penalty_save: `${icono} <b>${nombre}</b> ha parado un penalti. Lo tienes en tu once.`,
-    penalty_won: `${icono} <b>${nombre}</b> ha provocado un penalti. Lo tienes en tu once.`,
-    penalty_failed: `${icono} <b>${nombre}</b> ha fallado un penalti. Lo tienes en tu once.`,
-  };
-
-  const base = frases[hecho.tipo] || `${icono} <b>${nombre}</b>: ${escapar(hecho.nombre)}.`;
-  const cola = puntos != null ? `\nVa por ${puntos} puntos en esta jornada. Provisional.` : '';
-  return base + cola;
+  const plantilla = plantillas[hecho.tipo] || `📣 <b>{jugador}</b>: ${escapar(hecho.nombre)}.`;
+  const cola = puntos != null && plantillas.colaPuntos ? `
+${rellenar(plantillas.colaPuntos)}` : '';
+  return rellenar(plantilla) + cola;
 }
 
 /** Resumen privado de lo que han hecho tus futbolistas en un partido. */

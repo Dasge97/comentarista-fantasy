@@ -263,4 +263,18 @@ export const MIGRACIONES = [
       ALTER TABLE managers ADD COLUMN valor_equipo INTEGER;
     `,
   },
+  {
+    // Los grupos donde han metido al bot. Sin esto habría que buscar el
+    // identificador del grupo a mano, que es lo más incómodo de configurar
+    // un bot de Telegram.
+    nombre: '006-grupos-vistos',
+    sql: `
+      CREATE TABLE grupos_vistos (
+        chat_id     TEXT PRIMARY KEY,
+        titulo      TEXT,
+        tipo        TEXT,
+        visto_en    TEXT NOT NULL
+      );
+    `,
+  },
 ];

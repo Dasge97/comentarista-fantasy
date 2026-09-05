@@ -55,6 +55,16 @@ export const AJUSTES = {
     titulo: 'Tono del comentarista',
   },
 
+  // Textos de los avisos privados. {jugador} es el nombre del futbolista y
+  // {puntos} lo que lleva en la jornada. Se pueden usar etiquetas <b> y <i>.
+  plantilla_goals: { defecto: '⚽ <b>{jugador}</b> ha marcado. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de gol' },
+  plantilla_goal_assist: { defecto: '🅰️ <b>{jugador}</b> ha dado una asistencia. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de asistencia' },
+  plantilla_penalty_save: { defecto: '🧤 <b>{jugador}</b> ha parado un penalti. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de penalti parado' },
+  plantilla_penalty_won: { defecto: '🎯 <b>{jugador}</b> ha provocado un penalti. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de penalti provocado' },
+  plantilla_penalty_failed: { defecto: '❌ <b>{jugador}</b> ha fallado un penalti. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de penalti fallado' },
+  plantilla_correccion: { defecto: '↩️ Corrección: a <b>{jugador}</b> le han quitado {que}. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de corrección' },
+  plantilla_cola_puntos: { defecto: 'Va por {puntos} puntos en esta jornada. Provisional.', secreto: false, titulo: 'Coleta con los puntos del futbolista' },
+
   // Mercado.
   presupuesto_inicial: { defecto: '', secreto: false, titulo: 'Presupuesto con el que empieza cada manager' },
 

@@ -92,7 +92,7 @@ export class Telegram {
   async recibir(desde, espera = 25) {
     return this.#llamar(
       'getUpdates',
-      { offset: desde, timeout: espera, allowed_updates: ['message', 'callback_query'] },
+      { offset: desde, timeout: espera, allowed_updates: ['message', 'callback_query', 'my_chat_member'] },
       { tiempoLimiteMs: (espera + 10) * 1000 },
     );
   }

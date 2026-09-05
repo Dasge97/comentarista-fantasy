@@ -3,6 +3,7 @@ import { api } from './api.js';
 import Entrar from './paginas/Entrar.jsx';
 import { Clasificacion, Dinero, Manager, Mercado, Movimientos, Precios } from './paginas/liga.jsx';
 import { BaseDeDatos, Ajustes, Estado, Notificar, UsuariosAdmin } from './paginas/admin.jsx';
+import { TelegramAdmin } from './paginas/telegram.jsx';
 
 const PAGINAS = [
   { id: 'clasificacion', titulo: 'Clasificación', grupo: 'La liga', componente: Clasificacion },
@@ -13,6 +14,7 @@ const PAGINAS = [
   { id: 'precios', titulo: 'Precios', grupo: 'La liga', componente: Precios },
   { id: 'estado', titulo: 'Estado', grupo: 'Administración', componente: Estado, soloAdmin: true },
   { id: 'ajustes', titulo: 'Configuración', grupo: 'Administración', componente: Ajustes, soloAdmin: true },
+  { id: 'telegram', titulo: 'Telegram', grupo: 'Administración', componente: TelegramAdmin, soloAdmin: true },
   { id: 'usuarios', titulo: 'Usuarios', grupo: 'Administración', componente: UsuariosAdmin, soloAdmin: true },
   { id: 'notificar', titulo: 'Notificaciones', grupo: 'Administración', componente: Notificar, soloAdmin: true },
   { id: 'bd', titulo: 'Base de datos', grupo: 'Administración', componente: BaseDeDatos, soloAdmin: true },

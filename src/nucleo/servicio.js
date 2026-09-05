@@ -267,6 +267,19 @@ export class Servicio {
 
   // ---------- Publicación ----------
 
+  /** Textos de los avisos, editables desde la web. */
+  #plantillas() {
+    return {
+      goals: this.#config.obtener('plantilla_goals'),
+      goal_assist: this.#config.obtener('plantilla_goal_assist'),
+      penalty_save: this.#config.obtener('plantilla_penalty_save'),
+      penalty_won: this.#config.obtener('plantilla_penalty_won'),
+      penalty_failed: this.#config.obtener('plantilla_penalty_failed'),
+      correccion: this.#config.obtener('plantilla_correccion'),
+      colaPuntos: this.#config.obtener('plantilla_cola_puntos'),
+    };
+  }
+
   async #publicarPrivados(cambios) {
     if (!this.#config.activo('publicar_privados') || this.#config.activo('silenciado')) return;
 
@@ -287,6 +300,7 @@ export class Servicio {
           hecho,
           futbolista: cambio.jugador?.nombre || cambio.futbolistaId,
           puntos: cambio.ahora.puntos,
+          plantillas: this.#plantillas(),
         });
         const resultado = await this.#telegram.enviar(vinculacion.telegram_id, texto);
 

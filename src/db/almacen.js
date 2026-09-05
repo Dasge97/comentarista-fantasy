@@ -490,6 +490,28 @@ export class Almacen {
     return this.#db.prepare('SELECT * FROM mensajes_enviados ORDER BY enviado_en DESC LIMIT ?').all(limite);
   }
 
+  // ---------- Grupos de Telegram ----------
+
+  /**
+   * Anota un grupo en el que se ha visto al bot.
+   *
+   * Sirve para que el administrador elija el grupo con un clic en vez de
+   * buscar su identificador a mano, que es lo más incómodo de configurar un
+   * bot de Telegram.
+   */
+  anotarGrupo({ chatId, titulo, tipo }) {
+    this.#db
+      .prepare(`
+        INSERT INTO grupos_vistos (chat_id, titulo, tipo, visto_en) VALUES (?, ?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET titulo = excluded.titulo, visto_en = excluded.visto_en
+      `)
+      .run(String(chatId), titulo ?? null, tipo ?? null, ahora());
+  }
+
+  gruposVistos() {
+    return this.#db.prepare('SELECT * FROM grupos_vistos ORDER BY visto_en DESC').all();
+  }
+
   // ---------- Incidencias ----------
 
   anotarIncidencia(nivel, origen, mensaje) {

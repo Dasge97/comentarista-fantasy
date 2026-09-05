@@ -43,6 +43,9 @@ export const api = {
   forzarLectura: () => peticion('/acciones/lectura', { metodo: 'POST' }),
   probarRedactor: () => peticion('/acciones/probar-redactor', { metodo: 'POST' }),
   modelosDisponibles: () => peticion('/acciones/modelos'),
+
+  telegram: () => peticion('/telegram'),
+  elegirGrupo: (chatId) => peticion('/telegram/grupo', { metodo: 'POST', cuerpo: { chatId } }),
   notificar: (destino, texto) => peticion('/acciones/notificar', { metodo: 'POST', cuerpo: { destino, texto } }),
   calibrarDinero: (managerId, dineroReal) =>
     peticion('/acciones/calibrar-dinero', { metodo: 'POST', cuerpo: { managerId, dineroReal } }),

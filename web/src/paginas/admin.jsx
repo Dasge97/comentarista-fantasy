@@ -166,7 +166,8 @@ export function Ajustes() {
   if (cargando) return <Cargando que="la configuración" />;
 
   const secretos = (datos || []).filter((a) => a.secreto);
-  const normales = (datos || []).filter((a) => !a.secreto);
+  const plantillas = (datos || []).filter((a) => a.clave.startsWith('plantilla_'));
+  const normales = (datos || []).filter((a) => !a.secreto && !a.clave.startsWith('plantilla_'));
 
   return (
     <>
@@ -224,6 +225,24 @@ export function Ajustes() {
                   onChange={(e) => setCambios({ ...cambios, [a.clave]: e.target.value })}
                 />
               )}
+            </label>
+          ))}
+        </Tarjeta>
+
+        <Tarjeta titulo="Textos de los avisos privados">
+          <p className="suave" style={{ marginTop: 0, fontSize: 13 }}>
+            Son los mensajes que recibe cada manager cuando uno de sus futbolistas hace algo. Los huecos se
+            sustituyen: <code>{'{jugador}'}</code> por el nombre del futbolista, <code>{'{puntos}'}</code> por los que
+            lleva en la jornada y <code>{'{que}'}</code> por lo que le han quitado en una corrección. Se pueden usar
+            las etiquetas <code>&lt;b&gt;</code> y <code>&lt;i&gt;</code>.
+          </p>
+          {plantillas.map((a) => (
+            <label key={a.clave}>
+              <span>{a.titulo}</span>
+              <input
+                value={cambios[a.clave] ?? a.valor ?? ''}
+                onChange={(e) => setCambios({ ...cambios, [a.clave]: e.target.value })}
+              />
             </label>
           ))}
         </Tarjeta>
