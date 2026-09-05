@@ -12,6 +12,9 @@
  * a mano.
  */
 
+const escapar = (texto) =>
+  String(texto ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 const MENU = {
   inline_keyboard: [
     [{ text: '¿Quién soy?', callback_data: 'menu:quiensoy' }],
@@ -42,6 +45,7 @@ export class BotTelegram {
   #registrar;
   #desde = 0;
   #corriendo = false;
+  #nombre = null;
 
   constructor({ telegram, almacen, usuarios, config, registrar }) {
     this.#telegram = telegram;
@@ -89,6 +93,7 @@ export class BotTelegram {
 
     if (mensaje.chat.type !== 'private') {
       this.#anotarGrupo(mensaje.chat);
+      if (mensaje.new_chat_members?.length) await this.#saludarEnElGrupo(mensaje);
       return;
     }
 
@@ -109,6 +114,42 @@ export class BotTelegram {
 
   #anotarGrupo(chat) {
     this.#almacen.anotarGrupo({ chatId: chat.id, titulo: chat.title, tipo: chat.type });
+  }
+
+  /** Nombre del bot, para construir el enlace al chat privado. */
+  async #nombreDelBot() {
+    if (this.#nombre) return this.#nombre;
+    try {
+      this.#nombre = (await this.#telegram.quienSoy()).username;
+    } catch {
+      this.#nombre = null;
+    }
+    return this.#nombre;
+  }
+
+  /**
+   * Saluda en el grupo a quien acaba de entrar y le ofrece un botón que abre
+   * el chat privado con el bot.
+   *
+   * Telegram no deja que un bot escriba el primero a nadie: la persona tiene
+   * que abrir la conversación. El botón la abre y manda el /start solo, así
+   * que para el recién llegado es un único toque.
+   */
+  async #saludarEnElGrupo(mensaje) {
+    if (!this.#config.activo('saludar_al_entrar')) return;
+
+    const personas = mensaje.new_chat_members.filter((p) => !p.is_bot);
+    if (personas.length === 0) return;
+
+    const usuario = await this.#nombreDelBot();
+    const nombres = personas.map((p) => p.first_name || p.username || 'nuevo').join(', ');
+    const texto = this.#config.obtener('bienvenida_grupo').replaceAll('{nombre}', escapar(nombres));
+
+    await this.#telegram.enviar(String(mensaje.chat.id), texto, {
+      reply_markup: usuario
+        ? { inline_keyboard: [[{ text: 'Hablar conmigo y elegir mi equipo', url: `https://t.me/${usuario}?start=grupo` }]] }
+        : undefined,
+    });
   }
 
   async #cambioDePertenencia(cambio) {
@@ -142,7 +183,27 @@ export class BotTelegram {
       );
       return;
     }
-    await this.#telegram.enviar(chatId, AYUDA);
+    // Primera vez. Aquí es donde se explica todo, porque es el momento en
+    // que la persona está prestando atención.
+    await this.#telegram.enviar(
+      chatId,
+      [
+        '👋 Hola. Soy el comentarista de vuestra liga de Fantasy.',
+        '',
+        '<b>Qué hago por ti</b>',
+        'Durante los partidos te aviso por aquí en cuanto uno de tus futbolistas marca, da una asistencia, para un penalti, lo provoca o lo falla.',
+        'Al terminar cada partido te mando un resumen de lo que hicieron los tuyos.',
+        '',
+        '<b>Qué hago en el grupo</b>',
+        'Cuando alguien adelanta a otro en la clasificación, lo comento allí. Nada más: los avisos de tus futbolistas son solo para ti.',
+        '',
+        '<b>Qué necesito de ti</b>',
+        'Solo saber cuál de los managers de la liga eres. Elígete abajo y ya está.',
+        '',
+        'No te pido tu cuenta de Fantasy ni tu contraseña. Leo la liga con una cuenta aparte.',
+        'Si te equivocas al elegir, escribe /soltar y vuelves a empezar.',
+      ].join('\n'),
+    );
     await this.#ofrecerManagers(chatId);
   }
 

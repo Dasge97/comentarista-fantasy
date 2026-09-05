@@ -55,6 +55,15 @@ export const AJUSTES = {
     titulo: 'Tono del comentarista',
   },
 
+  // Bienvenida a quien entra en el grupo. {nombre} es la persona.
+  bienvenida_grupo: {
+    defecto:
+      'Bienvenido, {nombre} 👋\n\nSoy el comentarista de la liga. Dale al botón y te cuento en privado cómo funciona: te avisaré de los goles y asistencias de tus futbolistas durante los partidos.',
+    secreto: false,
+    titulo: 'Bienvenida en el grupo a quien entra',
+  },
+  saludar_al_entrar: { defecto: '1', secreto: false, titulo: 'Saludar en el grupo a quien entra' },
+
   // Textos de los avisos privados. {jugador} es el nombre del futbolista y
   // {puntos} lo que lleva en la jornada. Se pueden usar etiquetas <b> y <i>.
   plantilla_goals: { defecto: '⚽ <b>{jugador}</b> ha marcado. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de gol' },
