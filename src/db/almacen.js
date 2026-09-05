@@ -377,14 +377,22 @@ export class Almacen {
     return this.#db.prepare('SELECT * FROM partidos WHERE jornada = ? ORDER BY fecha').all(jornada);
   }
 
-  partidosPendientesDeResumen(jornada, estadoFinalizado, antesDe) {
+  /**
+   * Partidos que ya pueden resumirse.
+   *
+   * El límite inferior evita mandar resúmenes viejos. Sin él, un partido que
+   * lleva días terminado y nunca se resumió, porque el bot estuvo parado o
+   * porque Telegram no estaba configurado, saldría de golpe como si acabara
+   * de acabar.
+   */
+  partidosPendientesDeResumen(jornada, estadoFinalizado, antesDe, desde) {
     return this.#db
       .prepare(`
         SELECT * FROM partidos
         WHERE jornada = ? AND estado = ? AND resumen_enviado_en IS NULL
-          AND finalizado_en IS NOT NULL AND finalizado_en <= ?
+          AND finalizado_en IS NOT NULL AND finalizado_en <= ? AND finalizado_en >= ?
       `)
-      .all(jornada, estadoFinalizado, antesDe);
+      .all(jornada, estadoFinalizado, antesDe, desde);
   }
 
   marcarResumenEnviado(partidoId) {

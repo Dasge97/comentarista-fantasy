@@ -372,7 +372,10 @@ export class Servicio {
 
     const estabilizacion = this.#config.numero('minutos_estabilizacion');
     const limite = new Date(Date.now() - estabilizacion * 60000).toISOString();
-    const pendientes = this.#almacen.partidosPendientesDeResumen(jornada, ESTADO_FINALIZADO, limite);
+    // Un partido que lleva más de seis horas terminado ya no se resume: el
+    // momento ha pasado y solo desconcertaría al grupo.
+    const caducidad = new Date(Date.now() - 6 * 3600000).toISOString();
+    const pendientes = this.#almacen.partidosPendientesDeResumen(jornada, ESTADO_FINALIZADO, limite, caducidad);
 
     for (const partido of pendientes) {
       const equipos = [partido.local_id, partido.visitante_id];
