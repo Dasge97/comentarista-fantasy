@@ -250,7 +250,7 @@ export class Almacen {
   /** Añade una fila por cada entrada del mercado que haya cambiado. */
   guardarMercado(entradas) {
     const ultima = this.#db.prepare(
-      'SELECT precio, estado, pujas FROM historial_mercado WHERE entrada_id = ? ORDER BY id DESC LIMIT 1',
+      'SELECT precio, estado, pujas, origen FROM historial_mercado WHERE entrada_id = ? ORDER BY id DESC LIMIT 1',
     );
     const insertar = this.#db.prepare(`
       INSERT INTO historial_mercado (entrada_id, futbolista_id, precio, expira, estado, pujas, origen, vendedor_equipo_id, clausula, observado_en)
@@ -260,9 +260,15 @@ export class Almacen {
     enTransaccion(this.#db, () => {
       for (const e of entradas) {
         const previa = ultima.get(e.id);
-        if (previa && previa.precio === e.precio && previa.estado === e.estado && previa.pujas === e.numeroDePujas) {
-          continue;
-        }
+        // El origen entra en la comparación para que las filas guardadas
+        // antes de que existiera esa columna se completen solas.
+        const igual =
+          previa &&
+          previa.precio === e.precio &&
+          previa.estado === e.estado &&
+          previa.pujas === e.numeroDePujas &&
+          previa.origen === e.origen;
+        if (igual) continue;
         insertar.run(
           e.id, e.futbolistaId, e.precio, e.expira, e.estado, e.numeroDePujas,
           e.origen ?? null, e.vendedorEquipoId ?? null, e.clausula ?? null, ahora(),
