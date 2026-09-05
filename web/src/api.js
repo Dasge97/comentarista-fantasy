@@ -41,6 +41,7 @@ export const api = {
   borrarUsuario: (id) => peticion(`/usuarios/${id}`, { metodo: 'DELETE' }),
 
   forzarLectura: () => peticion('/acciones/lectura', { metodo: 'POST' }),
+  probarRedactor: () => peticion('/acciones/probar-redactor', { metodo: 'POST' }),
   notificar: (destino, texto) => peticion('/acciones/notificar', { metodo: 'POST', cuerpo: { destino, texto } }),
   calibrarDinero: (managerId, dineroReal) =>
     peticion('/acciones/calibrar-dinero', { metodo: 'POST', cuerpo: { managerId, dineroReal } }),

@@ -18,6 +18,20 @@ export function Estado() {
     }
   }
 
+  async function probarModelo() {
+    setMensaje('Probando el modelo…');
+    try {
+      const r = await api.probarRedactor();
+      setMensaje(
+        r.ok
+          ? `El modelo responde. Modelo ${r.modelo}, contra ${r.base}. Ha contestado: «${r.texto}».`
+          : `El modelo no responde: ${r.motivo}`,
+      );
+    } catch (e) {
+      setMensaje(e.message);
+    }
+  }
+
   if (cargando) return <Cargando que="el estado" />;
 
   return (
@@ -75,9 +89,14 @@ export function Estado() {
       </div>
 
       <Tarjeta titulo="Acciones">
-        <button className="accion" onClick={forzar}>
-          Leer ahora, sin esperar
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="accion" onClick={forzar}>
+            Leer ahora, sin esperar
+          </button>
+          <button className="accion suave" onClick={probarModelo}>
+            Probar el modelo que escribe
+          </button>
+        </div>
         {mensaje ? <p className="suave">{mensaje}</p> : null}
       </Tarjeta>
 

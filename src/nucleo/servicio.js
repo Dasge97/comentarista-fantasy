@@ -55,7 +55,11 @@ export class Servicio {
     const password = this.#config.obtener('fantasy_password');
     this.#lector = email && password ? new LectorFantasy({ email, password, ficheroSesion: this.#ficheroSesion }) : null;
     this.#telegram.cambiarToken(this.#config.obtener('telegram_token'));
-    this.#redactor.configurar(this.#config.obtener('anthropic_api_key'));
+    this.#redactor.configurar(
+      this.#config.obtener('anthropic_api_key'),
+      this.#config.obtener('anthropic_base_url'),
+      this.#config.obtener('anthropic_modelo'),
+    );
   }
 
   get lector() {
@@ -565,6 +569,11 @@ export class Servicio {
       movimientoNeto: movimiento,
       managerId: String(managerId),
     };
+  }
+
+  /** Comprueba que la clave y la dirección del modelo funcionan. */
+  probarRedactor() {
+    return this.#redactor.comprobar();
   }
 
   /** Lectura forzada desde el panel de administración. */

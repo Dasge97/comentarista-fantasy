@@ -17,6 +17,12 @@ export const AJUSTES = {
   telegram_token: { defecto: '', secreto: true, titulo: 'Token del bot de Telegram' },
   telegram_grupo: { defecto: '', secreto: false, titulo: 'Identificador del grupo de Telegram' },
   anthropic_api_key: { defecto: '', secreto: true, titulo: 'Clave de la API de Anthropic' },
+  anthropic_base_url: {
+    defecto: '',
+    secreto: false,
+    titulo: 'Dirección base de la API, si no es la oficial de Anthropic',
+  },
+  anthropic_modelo: { defecto: 'claude-opus-5', secreto: false, titulo: 'Modelo que escribe los comentarios' },
   fantasy_email: { defecto: '', secreto: false, titulo: 'Correo de la cuenta de servicio' },
   fantasy_password: { defecto: '', secreto: true, titulo: 'Contraseña de la cuenta de servicio' },
 

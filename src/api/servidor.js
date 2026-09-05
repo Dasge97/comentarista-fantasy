@@ -187,6 +187,12 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     res.json(servicio.calibrarPresupuesto({ managerId: String(managerId), dineroReal: cifra }));
   });
 
+  // Prueba la clave y la dirección del modelo desde el panel, para no tener
+  // que esperar a un adelantamiento real para saber si funcionan.
+  app.post('/api/acciones/probar-redactor', identificado, soloAdministrador, async (_req, res) => {
+    res.json(await servicio.probarRedactor());
+  });
+
   app.get('/api/incidencias', identificado, soloAdministrador, (_req, res) => {
     res.json(almacen.ultimasIncidencias(200));
   });
