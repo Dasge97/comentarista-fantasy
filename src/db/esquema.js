@@ -244,4 +244,15 @@ export const MIGRACIONES = [
       ALTER TABLE partidos ADD COLUMN finalizado_en TEXT;
     `,
   },
+  {
+    // El mercado mezcla futbolistas libres que ofrece el juego con
+    // futbolistas que ha puesto a la venta un manager de la liga. Sin
+    // distinguirlos, la pantalla del mercado no se entiende.
+    nombre: '004-origen-y-vendedor-en-el-mercado',
+    sql: `
+      ALTER TABLE historial_mercado ADD COLUMN origen TEXT;
+      ALTER TABLE historial_mercado ADD COLUMN vendedor_equipo_id TEXT;
+      ALTER TABLE historial_mercado ADD COLUMN clausula INTEGER;
+    `,
+  },
 ];

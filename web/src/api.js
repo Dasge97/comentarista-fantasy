@@ -57,6 +57,7 @@ export const api = {
   mercado: () => peticion('/liga/mercado'),
   movimientos: () => peticion('/liga/movimientos'),
   valorDe: (futbolistaId) => peticion(`/liga/futbolista/${futbolistaId}/valor`),
+  buscarFutbolistas: (texto) => peticion(`/liga/futbolistas?buscar=${encodeURIComponent(texto)}`),
 };
 
 /** Formatea una cifra de dinero en millones, que es como se habla en Fantasy. */

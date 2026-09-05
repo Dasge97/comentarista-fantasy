@@ -443,6 +443,13 @@ export class Servicio {
       this.#anotar('aviso', `No se pudo leer el mercado: ${error.message}`);
     }
 
+    try {
+      const jornada = await this.#jornadaActual();
+      await this.#rellenarJornadasPasadas(jornada.numero);
+    } catch (error) {
+      this.#anotar('aviso', `No se pudieron recuperar las jornadas pasadas: ${error.message}`);
+    }
+
     // Catálogo y valores: una vez al día basta.
     if (!this.#almacen.hayValoresDe(hoy())) {
       try {
@@ -455,6 +462,63 @@ export class Servicio {
         this.#anotar('aviso', `No se pudieron leer los valores de mercado: ${error.message}`);
       }
     }
+  }
+
+  /**
+   * Recupera los resultados de las jornadas ya jugadas.
+   *
+   * El bot ha arrancado a mitad de temporada, así que sin esto la pantalla
+   * de cada manager solo mostraría la jornada en curso. Se hace una vez por
+   * jornada pasada y queda anotado hasta dónde se ha llegado.
+   */
+  async #rellenarJornadasPasadas(jornadaActual) {
+    const hecho = this.#config.numero('jornadas_rellenadas');
+    if (hecho >= jornadaActual - 1) return;
+
+    const managers = this.#almacen.managersReales();
+    if (managers.length === 0) return;
+
+    for (let jornada = hecho + 1; jornada < jornadaActual; jornada += 1) {
+      let leidas = 0;
+      for (const manager of managers) {
+        try {
+          const alineacion = await this.#lector.alineacion(manager.equipo_id, jornada);
+          if (!alineacion) continue;
+          for (const jugador of alineacion.jugadores) {
+            this.#almacen.guardarLecturaJugador({
+              jornada,
+              equipoId: manager.equipo_id,
+              futbolistaId: jugador.id,
+              puntos: jugador.puntos,
+              estadisticas: jugador.estadisticas,
+            });
+          }
+          this.#almacen.guardarLecturaManager({
+            jornada,
+            equipoId: manager.equipo_id,
+            puntosJornada: alineacion.puntos,
+            puntosGenerales: null,
+            posicion: null,
+          });
+          leidas += 1;
+        } catch (error) {
+          this.#anotar('aviso', `No se pudo recuperar la jornada ${jornada} de ${manager.nombre}: ${error.message}`);
+        }
+      }
+      // Las posiciones de esa jornada se calculan con lo leído, ordenando
+      // por los puntos de la jornada.
+      this.#colocarPuestosDeJornada(jornada);
+      this.#config.poner('jornadas_rellenadas', String(jornada));
+      this.#anotar('info', `Recuperada la jornada ${jornada}: ${leidas} managers`);
+    }
+  }
+
+  #colocarPuestosDeJornada(jornada) {
+    const filas = this.#almacen.db
+      .prepare('SELECT equipo_id, puntos_jornada FROM estado_manager WHERE jornada = ? ORDER BY puntos_jornada DESC')
+      .all(jornada);
+    const actualizar = this.#almacen.db.prepare('UPDATE estado_manager SET posicion = ? WHERE jornada = ? AND equipo_id = ?');
+    filas.forEach((fila, indice) => actualizar.run(indice + 1, jornada, fila.equipo_id));
   }
 
   async #sincronizarPlantillas(ligaId) {

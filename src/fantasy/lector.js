@@ -110,18 +110,36 @@ export class LectorFantasy {
     return normalizarCalendario(datos);
   }
 
-  /** Mercado de la liga. No incluye el importe de las pujas ajenas. */
+  /**
+   * Mercado de la liga.
+   *
+   * Trae dos cosas distintas mezcladas, que conviene separar:
+   * `marketPlayerLeague` son futbolistas libres que ofrece el juego, y
+   * `marketPlayerTeam` son futbolistas que un manager ha puesto a la venta.
+   * Solo los segundos tienen vendedor y cláusula de rescisión.
+   *
+   * No incluye el importe de las pujas ajenas, solo cuántas hay.
+   */
   async mercado(ligaId) {
     const datos = await this.#cliente.get(`${this.#cmp}/league/${ligaId}/market?x-lang=es`);
-    return (datos || []).map((entrada) => ({
-      id: String(entrada.id),
-      futbolistaId: String(entrada.playerMaster?.id),
-      futbolistaNombre: entrada.playerMaster?.nickname || entrada.playerMaster?.name,
-      precio: entrada.salePrice != null ? Number(entrada.salePrice) : null,
-      expira: entrada.expirationDate,
-      estado: entrada.status,
-      numeroDePujas: entrada.numberOfBids != null ? Number(entrada.numberOfBids) : null,
-    }));
+    return (datos || []).map((entrada) => {
+      const deManager = entrada.discr === 'marketPlayerTeam';
+      const vendedor = entrada.sellerTeam || entrada.playerTeam?.manager ? entrada.sellerTeam : null;
+      return {
+        id: String(entrada.id),
+        origen: deManager ? 'manager' : 'libre',
+        futbolistaId: String(entrada.playerMaster?.id),
+        futbolistaNombre: entrada.playerMaster?.nickname || entrada.playerMaster?.name,
+        precio: entrada.salePrice != null ? Number(entrada.salePrice) : null,
+        expira: entrada.expirationDate,
+        estado: entrada.status,
+        // Los libres cuentan pujas; los de manager cuentan ofertas.
+        numeroDePujas: Number(entrada.numberOfBids ?? entrada.numberOfOffers ?? 0),
+        vendedorEquipoId: vendedor?.id ? String(vendedor.id) : null,
+        vendedorNombre: vendedor?.manager?.managerName || entrada.playerTeam?.manager?.managerName || null,
+        clausula: entrada.playerTeam?.buyoutClause != null ? Number(entrada.playerTeam.buyoutClause) : null,
+      };
+    });
   }
 
   /** Actividad de la liga: fichajes, ventas y movimientos. */

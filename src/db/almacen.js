@@ -253,8 +253,8 @@ export class Almacen {
       'SELECT precio, estado, pujas FROM historial_mercado WHERE entrada_id = ? ORDER BY id DESC LIMIT 1',
     );
     const insertar = this.#db.prepare(`
-      INSERT INTO historial_mercado (entrada_id, futbolista_id, precio, expira, estado, pujas, observado_en)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO historial_mercado (entrada_id, futbolista_id, precio, expira, estado, pujas, origen, vendedor_equipo_id, clausula, observado_en)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     let cambios = 0;
     enTransaccion(this.#db, () => {
@@ -263,23 +263,54 @@ export class Almacen {
         if (previa && previa.precio === e.precio && previa.estado === e.estado && previa.pujas === e.numeroDePujas) {
           continue;
         }
-        insertar.run(e.id, e.futbolistaId, e.precio, e.expira, e.estado, e.numeroDePujas, ahora());
+        insertar.run(
+          e.id, e.futbolistaId, e.precio, e.expira, e.estado, e.numeroDePujas,
+          e.origen ?? null, e.vendedorEquipoId ?? null, e.clausula ?? null, ahora(),
+        );
         cambios += 1;
       }
     });
     return cambios;
   }
 
+  /**
+   * Mercado tal como está ahora, con el nombre del futbolista y el del
+   * manager que lo vende. Sin los nombres la pantalla es ilegible.
+   */
   mercadoActual() {
     return this.#db
       .prepare(`
-        SELECT m.* FROM historial_mercado m
+        SELECT m.*, f.nombre AS futbolista_nombre, f.posicion_id, mg.nombre AS vendedor_nombre
+        FROM historial_mercado m
         JOIN (SELECT entrada_id, MAX(id) AS ultimo FROM historial_mercado GROUP BY entrada_id) u
           ON m.id = u.ultimo
+        LEFT JOIN futbolistas f ON f.id = m.futbolista_id
+        LEFT JOIN managers mg ON mg.equipo_id = m.vendedor_equipo_id
         WHERE m.estado = 'on_sale'
         ORDER BY m.precio DESC
       `)
       .all();
+  }
+
+  /** Busca futbolistas por nombre, para los buscadores de la web. */
+  buscarFutbolistas(texto, limite = 25) {
+    return this.#db
+      .prepare(`
+        SELECT f.id, f.nombre, f.posicion_id, f.equipo_real_id,
+               (SELECT valor FROM valor_futbolista v WHERE v.futbolista_id = f.id ORDER BY fecha DESC LIMIT 1) AS valor,
+               (SELECT COUNT(*) FROM valor_futbolista v WHERE v.futbolista_id = f.id) AS dias,
+               (SELECT mg.nombre FROM historial_propiedad p JOIN managers mg ON mg.equipo_id = p.equipo_id
+                WHERE p.futbolista_id = f.id AND p.hasta IS NULL LIMIT 1) AS propietario
+        FROM futbolistas f
+        WHERE f.nombre LIKE ? COLLATE NOCASE
+        ORDER BY valor DESC
+        LIMIT ?
+      `)
+      .all(`%${texto}%`, limite);
+  }
+
+  futbolista(id) {
+    return this.#db.prepare('SELECT * FROM futbolistas WHERE id = ?').get(String(id)) || null;
   }
 
   // ---------- Catálogo y valores de mercado ----------

@@ -24,6 +24,19 @@ export function Estado() {
     <>
       <h1>Estado</h1>
       <p className="bajada">Cómo va el bot ahora mismo.</p>
+
+      <Tarjeta titulo="Qué es cada cosa">
+        <p className="suave" style={{ marginTop: 0, fontSize: 13 }}>
+          El bot no lee todo el rato. Mira el calendario y decide: si hay un partido en juego lee cada minuto, y si no
+          hay ninguno duerme hasta que se acerque el siguiente. <b>Ritmo de lectura</b> dice en cuál de esas
+          situaciones está.
+        </p>
+        <p className="suave" style={{ fontSize: 13, marginBottom: 0 }}>
+          <b>Leer ahora</b> se salta esa espera y hace una lectura completa en el momento: clasificación, once de cada
+          manager y puntos de cada futbolista. Sirve para comprobar que todo funciona sin esperar a que haya partido.
+          No envía mensajes viejos: solo avisa de lo que haya cambiado desde la última lectura.
+        </p>
+      </Tarjeta>
       <Aviso>{error}</Aviso>
 
       {!datos?.configurado ? (
@@ -33,8 +46,12 @@ export function Estado() {
       ) : null}
 
       <div className="rejilla">
-        <Dato titulo="Ritmo de lectura" valor={datos.servicio.ritmo} />
-        <Dato titulo="Última lectura" valor={fechaCorta(datos.servicio.ultimaLectura)} />
+        <Dato titulo="Ritmo de lectura" valor={datos.servicio.ritmo} detalle="Depende de si hay partidos en juego." />
+        <Dato
+          titulo="Última lectura"
+          valor={fechaCorta(datos.servicio.ultimaLectura)}
+          detalle={datos.servicio.proximoCiclo ? `La siguiente, sobre las ${fechaCorta(datos.servicio.proximoCiclo)}.` : null}
+        />
         <Dato
           titulo="Sesión de Fantasy"
           valor={datos.sesionFantasy.activa ? 'Viva' : 'Caducada'}
@@ -45,17 +62,21 @@ export function Estado() {
           valor={datos.telegram.configurado ? 'Configurado' : 'Sin token'}
           detalle={datos.telegram.grupo ? 'Con grupo asignado.' : 'Falta el grupo.'}
         />
-        <Dato titulo="Managers" valor={datos.managers} detalle={`${datos.vinculados} vinculados con Telegram.`} />
         <Dato
-          titulo="Última lectura completa"
-          valor={datos.servicio.lecturaCompleta === null ? '—' : datos.servicio.lecturaCompleta ? 'Sí' : 'No'}
-          detalle="Con una lectura incompleta el bot no narra adelantamientos."
+          titulo="Managers"
+          valor={datos.managers}
+          detalle={`${datos.vinculados} han dicho quiénes son por el chat del bot.`}
+        />
+        <Dato
+          titulo="¿Se leyeron todos?"
+          valor={datos.servicio.lecturaCompleta === null ? 'Sin leer aún' : datos.servicio.lecturaCompleta ? 'Sí' : 'No'}
+          detalle="Si falla la lectura de algún manager, el bot calla: una clasificación a medias no se puede contar."
         />
       </div>
 
       <Tarjeta titulo="Acciones">
         <button className="accion" onClick={forzar}>
-          Leer ahora
+          Leer ahora, sin esperar
         </button>
         {mensaje ? <p className="suave">{mensaje}</p> : null}
       </Tarjeta>

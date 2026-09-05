@@ -49,6 +49,10 @@ export const AJUSTES = {
 
   // Contraseña del administrador, guardada como resumen y no en claro.
   admin_password_hash: { defecto: '', secreto: true, titulo: 'Contraseña del administrador' },
+
+  // Hasta qué jornada se han leído los resultados anteriores. El bot arranca
+  // a mitad de temporada, así que la primera vez recupera lo ya jugado.
+  jornadas_rellenadas: { defecto: '0', secreto: false, titulo: 'Jornadas anteriores ya recuperadas' },
 };
 
 /** Calcula el resumen de una contraseña con sal, para no guardarla en claro. */

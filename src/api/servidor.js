@@ -272,8 +272,22 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     );
   });
 
+  app.get('/api/liga/futbolistas', identificado, (req, res) => {
+    const buscar = String(req.query.buscar || '').trim();
+    if (buscar.length < 2) return res.json([]);
+    res.json(almacen.buscarFutbolistas(buscar));
+  });
+
   app.get('/api/liga/futbolista/:id/valor', identificado, (req, res) => {
-    res.json(almacen.serieDeValor(req.params.id));
+    const futbolista = almacen.futbolista(req.params.id);
+    const serie = almacen.serieDeValor(req.params.id);
+    res.json({
+      futbolista,
+      serie,
+      // La serie empieza el día que arrancó el bot: los valores anteriores
+      // no están en ninguna parte a la que podamos llegar.
+      diasGuardados: serie.length,
+    });
   });
 
   // ---------- Web ----------
