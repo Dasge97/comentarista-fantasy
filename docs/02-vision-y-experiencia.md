@@ -23,6 +23,21 @@ Estas responsabilidades son conceptuales. No implican servicios separados, tecno
 4. El sistema sincroniza la información sin introducir manualmente jugadores cada jornada.
 5. Quien quiera avisos privados inicia el chat con el bot.
 
+### Cómo se suscribe cada amigo, acordado el 5 de septiembre de 2026
+
+El recorrido es este:
+
+1. Desde el grupo se llega al bot. El grupo contiene un enlace o un botón que abre la conversación privada con el bot.
+2. En el privado, el bot muestra la lista de managers de la liga y el usuario elige cuál es.
+3. La elección queda guardada. A partir de ahí recibe por privado los hechos de sus futbolistas.
+4. El usuario puede rectificar su elección cuando quiera, por si se ha equivocado.
+
+Telegram obliga a que sea el usuario quien inicie la conversación privada. El bot no puede escribir primero. Por eso el paso desde el grupo es imprescindible, y no es un adorno: sin él no hay privados.
+
+La lista de managers se lee de la liga, no se escribe a mano. En el momento de esta documentación son 8 managers reales más la cuenta de servicio, que no debe aparecer en la lista.
+
+Si dos personas eligen el mismo manager, se lo queda quien lo elige primero. Quien se equivocó puede liberarlo desde su propia conversación con el bot. No hay un administrador que apruebe cada vinculación. El usuario lo aprobó el 5 de septiembre de 2026.
+
 | Relación | Significado |
 | --- | --- |
 | Grupo de Telegram → liga Fantasy | Contexto de competición compartido |

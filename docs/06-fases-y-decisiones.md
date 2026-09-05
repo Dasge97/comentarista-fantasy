@@ -16,16 +16,36 @@ La prioridad cambió explícitamente durante la conversación: primero comprobar
 
 Si no hay partidos en la fase 2, se puede completar la lectura histórica y preparar la observación en directo. No declarar validada la actualización hasta observarla.
 
-## MVP candidato, sin aprobar
+## Alcance del MVP, acordado con el usuario el 5 de septiembre de 2026
 
-- Vincular grupo con liga y usuarios con managers.
-- Leer automáticamente el XI de la jornada.
-- Detectar algunos acontecimientos relevantes y cruzarlos con el XI.
-- Enviar privados y mensajes selectivos al grupo.
-- Detectar cambios de puntos Fantasy.
-- Excluir la cuenta de servicio de la narración de la competición.
+El bot tiene dos superficies con contenidos distintos. La separación es deliberada.
 
-Un primer alcance podría contener goles, rojas, diferencias de puntos, cambio de líder y resumen de partido. Es una posibilidad a decidir tras la prueba; no una orden de implementarlo todo.
+### Privado, a cada manager
+
+Durante el partido, el bot avisa a cada manager de los hechos de sus propios futbolistas. Los hechos acordados son gol, asistencia, penalti parado, penalti provocado y penalti fallado. Los cinco están disponibles como campos de la API de Fantasy, así que no hay que deducirlos.
+
+Al terminar cada partido, el bot envía a cada manager que tuviera futbolistas alineados en ese partido un resumen de lo que han hecho.
+
+### Grupo
+
+En el MVP el grupo recibe un único tipo de mensaje: el comentario cuando hay movimiento en la clasificación de la liga.
+
+El razonamiento del usuario es que un adelantamiento significa que el futbolista de alguien ha hecho algo, y ese momento merece comentario. El bot comprueba la clasificación cada cierto tiempo. Cuando alguien cambia de puesto, publica un comentario con humor sobre la situación.
+
+Como la API da el desglose de estadísticas por futbolista, el bot puede decir el motivo exacto del adelantamiento en vez de suponerlo. Se conoce qué futbolista ha sumado y qué ha hecho para sumar.
+
+Más adelante se añadirán más contenidos al grupo. En el MVP no.
+
+### Restricción que afecta al grupo
+
+La puntuación sube y baja durante el partido, y sigue moviéndose un rato después de terminar. Publicar cada cambio de puesto nada más detectarlo llenaría el grupo de adelantamientos que se deshacen minutos después. El comentario de clasificación debe exigir que el cambio se mantenga durante varias lecturas seguidas antes de publicarse. El número de lecturas está sin decidir.
+
+### Pendiente en el MVP
+
+- Vincular cada usuario de Telegram con su manager de la liga.
+- Excluir la cuenta de servicio `ComentaristaBot` de la clasificación que narra el bot.
+- Decidir el tono y el grado de humor con el grupo.
+- Decidir cada cuánto se lee la clasificación.
 
 ## Criterios candidatos de éxito del producto
 
@@ -52,6 +72,12 @@ No hay promesas de latencia, disponibilidad, presupuesto ni cobertura de todos l
 | D07 | Documentar para otro agente | El traspaso debe ser autónomo y explicar la evidencia pendiente |
 | D08 | La primera prueba es lo primero que el agente debe comentar | Instrucción explícita en AGENTS.md y documento 01 |
 | D09 | Publicar documentación en comentarista-fantasy | Repositorio facilitado por el usuario: Dasge97/comentarista-fantasy |
+| D10 | Los hechos de los futbolistas van por privado a su manager | El grupo no recibe goles ni asistencias sueltas |
+| D11 | El resumen de final de partido va por privado, solo a quien tuviera futbolistas en ese partido | No es un resumen general del grupo |
+| D12 | El grupo solo recibe el comentario de cambio de puesto en la clasificación | Es el único contenido de grupo del MVP; más adelante se añadirán otros |
+| D13 | El comentario del grupo lleva humor, y los hechos que lo justifican salen medidos de la API | El humor está en la redacción, no en los datos |
+| D14 | Cada amigo se suscribe desde el grupo, elige su manager en el privado y puede rectificar | La lista de managers se lee de la liga; la cuenta de servicio no aparece |
+| D15 | Un manager se lo queda quien lo elige primero, y quien se equivoca lo libera él mismo | No hay administrador que apruebe vinculaciones |
 
 ## Orientaciones propuestas, no decisiones cerradas
 

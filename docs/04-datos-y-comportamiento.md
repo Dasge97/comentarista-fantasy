@@ -50,6 +50,20 @@ Se detecta un cambio observado de +4. No se conoce por esa diferencia la causa e
 
 La frecuencia de lectura debe adaptarse a partidos en juego, cambios observados, límites del proveedor y disponibilidad. Leer ligas y plantillas con menor frecuencia que puntuaciones puede ahorrar consultas. No se ha decidido un intervalo de producción.
 
+## La puntuación se mueve mucho, y sigue moviéndose después del partido
+
+Aviso del usuario, confirmado en la prueba del 5 de septiembre de 2026: durante el partido la puntuación cambia constantemente, y al terminar el partido sigue cambiando durante un rato más.
+
+En un sondeo de cinco minutos durante un partido en juego se observaron dos cambios en la clasificación de la jornada. Uno hacia arriba y otro hacia abajo. Un manager pasó de 21 a 20 puntos, es decir, Fantasy corrigió a la baja mientras el partido seguía.
+
+Consecuencias para el diseño:
+
+- Ningún punto es definitivo hasta bastante después del final del partido. No usar el pitido final como señal de cierre.
+- Las bajadas de puntos son normales, no un error de lectura. El sistema debe aceptar diferencias negativas sin tratarlas como fallo.
+- Anunciar un adelantamiento en la clasificación en cuanto se detecta producirá mensajes que se desmienten solos minutos después. Conviene exigir que un cambio se mantenga durante varias lecturas antes de publicarlo, o marcarlo claramente como provisional.
+- Un resumen de «cierre de jornada» publicado justo al acabar el último partido puede quedar desfasado. Hay que esperar a que la puntuación se estabilice, o publicar un cierre provisional y después una corrección.
+- Merece la pena medir cuánto tarda en estabilizarse tras el final del partido antes de fijar los tiempos del bot.
+
 ## Detección y publicación
 
 1. Obtener y validar una nueva observación.
