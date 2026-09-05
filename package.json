@@ -1,0 +1,14 @@
+{
+  "name": "comentarista-fantasy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bot de Telegram que comenta la liga de LaLiga Fantasy de un grupo de amigos",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "comprobar:lector": "node scripts/comprobar-lector.js",
+    "comprobar:sesion": "node scripts/comprobar-sesion.js"
+  }
+}

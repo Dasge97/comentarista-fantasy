@@ -1,0 +1,18 @@
+# Dependencias
+node_modules/
+
+# Secretos. Nunca deben llegar al repositorio.
+.env
+.env.local
+.env.*.local
+
+# Datos locales: base de datos y sesión guardada.
+# La sesión contiene tokens, que son secretos.
+data/
+
+# Registros
+*.log
+
+# Ficheros del sistema
+.DS_Store
+Thumbs.db
