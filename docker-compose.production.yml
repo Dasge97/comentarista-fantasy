@@ -1,0 +1,37 @@
+# Despliegue en el servidor codehive.
+#
+# Este fichero no se levanta solo: el servidor añade
+# docker-compose.override.generated.yml con el puerto publicado y los
+# secretos reales. El comando canónico está en README_DEPLOY.md.
+#
+# Un único servicio. El mismo proceso de Node sirve la web, atiende la API,
+# sondea Fantasy y habla con Telegram. La base de datos es un fichero SQLite
+# dentro del volumen, así que no hace falta contenedor de base de datos.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATOS_DIR: /datos
+      PORT: 3000
+      URL_PUBLICA: ${URL_PUBLICA:-https://fantasybot.code-hive.space}
+      # Los secretos llegan por el fichero generado en el servidor.
+      # La primera vez siembran la configuración; después manda lo que se
+      # guarde desde el panel de administración.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      CLAVE_CIFRADO: ${CLAVE_CIFRADO:-}
+      FANTASY_EMAIL: ${FANTASY_EMAIL:-}
+      FANTASY_PASSWORD: ${FANTASY_PASSWORD:-}
+      FANTASY_LIGA_ID: ${FANTASY_LIGA_ID:-}
+      FANTASY_MANAGER_SERVICIO: ${FANTASY_MANAGER_SERVICIO:-}
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN:-}
+      TELEGRAM_GRUPO: ${TELEGRAM_GRUPO:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - datos:/datos
+
+volumes:
+  datos:

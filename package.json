@@ -10,5 +10,9 @@
   "scripts": {
     "comprobar:lector": "node scripts/comprobar-lector.js",
     "comprobar:sesion": "node scripts/comprobar-sesion.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
+    "express": "^5.2.1"
   }
 }

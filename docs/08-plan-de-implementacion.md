@@ -13,6 +13,7 @@ Este plan supone el alcance acordado en [06 · Fases y decisiones](06-fases-y-de
 | Redacción del humor | Un modelo de lenguaje | Con 8 amigos y muchas jornadas, las frases escritas a mano se repiten. El modelo redacta; no decide hechos. |
 | Almacenamiento | SQLite | Una liga, 9 managers y unas pocas miles de filas por temporada. Un fichero, sin servidor de base de datos que mantener. |
 | Modelo concreto | `claude-opus-5` | Los mensajes son cortos y hay pocos por jornada. El coste estimado es de unos céntimos por jornada. |
+| Forma de la web | API en JSON más aplicación de React con Vite | El usuario amplió el alcance a una web visual con gráficos. Con HTML generado en el servidor y recargas de página resulta incómodo. La misma API servirá mañana a una aplicación móvil. |
 
 El coste del modelo sale de unos 20 comentarios por jornada, con unas 500 palabras de contexto y 150 de respuesta cada uno. A 5 dólares por millón de palabras de entrada y 25 por millón de salida, la jornada cuesta alrededor de 0,15 dólares. La temporada entera queda por debajo de 6 dólares.
 
@@ -29,36 +30,88 @@ Es un único proceso de Node. No hacen falta servicios separados para una liga d
 | Publicador | Decide qué se envía, a quién y cuándo. Aplica la regla de confirmación y evita repeticiones. |
 | Bot de Telegram | Atiende la vinculación de cada amigo y envía los mensajes. |
 | Redactor | Llama al modelo de lenguaje para escribir el comentario del grupo. |
-| Panel de administración | Página web para configurar el bot, guardar las claves y consultar la base de datos. |
+| API HTTP | Expone los datos de la base de datos en JSON, con autenticación y permisos. |
+| Web | Aplicación visual que consume la API. Contiene la administración y las páginas de la liga. |
 
-## Panel de administración
+## La web
 
-Es una página web servida por el mismo proceso de Node. Solo la usa el usuario, no los amigos.
+El 5 de septiembre de 2026 el usuario amplió el alcance. Ya no es un panel de administración con formularios, sino una web visual, y hay que prepararlo desde el principio aunque las páginas se añadan poco a poco.
 
-### Qué contiene
+Al principio solo entra el usuario. Los amigos entrarán cuando la web esté terminada.
+
+### Cómo se construye
+
+El proceso de Node deja de generar páginas HTML. Pasa a exponer una API en JSON. La web es una aplicación de React construida con Vite, que se compila a ficheros estáticos y los sirve el mismo proceso de Node.
+
+Es un cambio respecto a la decisión anterior, que era HTML generado en el servidor sin compilación. El motivo es que una web visual con gráficos de evolución de precios y tablas que se actualizan solas no se hace cómodamente con formularios y recargas de página.
+
+La separación entre API y web tiene una ventaja añadida: la misma API puede servir mañana a una aplicación móvil sin tocar nada.
+
+### Quién entra y con qué permisos
+
+Nadie se registra por su cuenta. El usuario da de alta a cada persona desde la administración. Decidido el 5 de septiembre de 2026.
+
+| Papel | Quién | Qué puede hacer |
+| --- | --- | --- |
+| Administrador | El usuario | Todo: configuración, claves, base de datos, alta y baja de usuarios, envío de notificaciones |
+| Participante | Cada amigo dado de alta | Ver las páginas de la liga y sus propios datos |
+
+Un participante entra desde el bot de Telegram. El bot le da un enlace con un código de un solo uso, y al abrirlo queda identificado como su manager. No hay registro, ni contraseñas que recordar, ni recuperación de contraseña que construir.
+
+El administrador entra con contraseña, porque no depende de Telegram y debe poder entrar aunque el bot esté caído.
+
+La elección de manager en el chat privado sigue siendo del propio amigo, como se acordó. El alta en la web es cosa aparte: el usuario decide a quién le da acceso. Un amigo puede recibir mensajes del bot sin tener acceso a la web.
+
+### Qué contiene, para el administrador
 
 | Sección | Contenido |
 | --- | --- |
 | Claves | Clave de la API de Anthropic, token del bot de Telegram, correo y contraseña de la cuenta de servicio de Fantasy. Se escriben aquí, no en ficheros a mano. |
 | Configuración | Segundos entre lecturas, minutos de estabilización tras el final del partido, número de lecturas para confirmar un cambio de puesto, identificador del grupo de Telegram, tono del humor. |
 | Estado | Si la sesión de Fantasy está viva y cuándo caduca, hora de la última lectura, si el sondeo está corriendo, próximo partido. |
-| Base de datos | Consulta de las tablas: managers, vinculaciones, últimas lecturas y mensajes enviados. |
+| Usuarios | Alta y baja de participantes, y qué manager tiene asignado cada uno. |
+| Base de datos | Consulta de todas las tablas, incluidas las de histórico. |
 | Registro | Últimos mensajes enviados y últimos errores. |
 | Acciones | Forzar una lectura, silenciar el bot, soltar la vinculación de un amigo. |
+| Notificaciones | Escribir un mensaje y enviarlo al grupo o a un participante concreto. |
 
-### Cómo se construye
+### Qué contiene, para todos
 
-Express sirviendo páginas HTML generadas en el servidor, sin compilación ni framework de interfaz. Para un panel que consulta tablas y guarda un formulario, una aplicación de una sola página añade trabajo sin aportar nada.
+Estas páginas son las primeras candidatas. No están cerradas y se irán decidiendo.
+
+| Página | Contenido |
+| --- | --- |
+| Clasificación | General y por jornada, con la evolución de puestos |
+| Manager | Plantilla, once de cada jornada, puntos y estadísticas |
+| Dinero | Presupuesto calculado de cada participante y su evolución |
+| Mercado | Qué está a la venta, a qué precio y con cuántas pujas |
+| Precios | Evolución del valor de mercado de un futbolista a lo largo de la temporada |
+| Movimientos | Fichajes y ventas de la liga, quién compró qué y por cuánto |
+
+### El dinero de cada participante hay que calcularlo
+
+Comprobado el 5 de septiembre de 2026: la API devuelve el dinero de la cuenta propia, pero responde HTTP 403 al pedir el de un rival. En la plantilla de un rival el campo de dinero llega vacío. El valor de su plantilla sí es visible.
+
+Así que el dinero de los demás no se lee, se calcula: presupuesto inicial, menos las compras, más las ventas.
+
+El registro de actividad de la liga lo hace posible. Contiene 444 movimientos y llega hasta el 30 de julio de 2026, repartidos en tres páginas. Es el histórico completo desde el arranque de la liga.
+
+Quedan dos cosas por resolver antes de dar una cifra:
+
+- Averiguar cuál es el presupuesto inicial con el que empieza cada manager.
+- Descifrar qué significa cada tipo de movimiento. Se observaron los tipos 1, 4, 5, 6, 7, 9, 31 y 33. Los tipos 31 y 33 son la mayoría, con 180 y 176 apariciones, y probablemente son compra y venta.
+
+La cifra será una estimación mientras no se validen las dos cosas. Hay una forma de comprobarla: calcular el dinero de la cuenta de servicio con el mismo método y compararlo con el que devuelve la API, que sí se puede leer.
 
 ### Seguridad
 
-El panel guarda las claves de la API de Anthropic, el token de Telegram y la contraseña de la cuenta de Fantasy. Es el punto más delicado de todo el sistema.
+La web guarda las claves de la API de Anthropic, el token de Telegram y la contraseña de la cuenta de Fantasy. Es el punto más delicado de todo el sistema.
 
-Las medidas son estas:
-
-- Entrada con contraseña. Nunca abierto a quien conozca la dirección.
-- Conexión cifrada por HTTPS. Lo resuelve Traefik en el servidor codehive con certificado de Let's Encrypt, así que no hay que montar nada.
-- Las claves guardadas se muestran ocultas. El panel deja cambiarlas, no leerlas.
+- La administración entra con contraseña. Nunca abierta a quien conozca la dirección.
+- Las claves guardadas se muestran ocultas. La web deja cambiarlas, no leerlas.
+- Los códigos de acceso que reparte el bot son de un solo uso y caducan.
+- Un participante nunca ve las secciones de administración, y la API lo comprueba en el servidor. No basta con esconder el botón.
+- La conexión cifrada por HTTPS la resuelve Traefik en el servidor codehive con certificado de Let's Encrypt, así que no hay que montar nada.
 
 El subdominio es `fantasybot.code-hive.space`. Comprobado el 5 de septiembre de 2026: resuelve a 87.106.222.241, que es el servidor codehive.
 
@@ -84,16 +137,77 @@ Una ventana de dos horas de partidos son unas 1.080 peticiones. En las pruebas s
 
 ## Datos que se guardan
 
+El usuario pidió el 5 de septiembre de 2026 que se guarde todo lo que se lea, no solo lo que el bot necesita para el mensaje siguiente. El motivo son funciones futuras de mercado y saber cuándo alguien hace movimientos.
+
+Por eso la base de datos tiene dos partes. Una guarda el estado actual, que es lo que el bot consulta para trabajar. Otra guarda el histórico, que solo crece y nunca se pisa.
+
+### Estado actual
+
 | Tabla | Contenido |
 | --- | --- |
 | `managers` | ID de manager, ID de equipo y nombre. Se refresca desde la liga. La cuenta de servicio se marca para excluirla. |
 | `vinculaciones` | ID de usuario de Telegram, ID de manager y fecha. Un manager solo puede estar vinculado a una persona. |
-| `lecturas_jugador` | Jornada, futbolista, manager, puntos y estadísticas de la última lectura válida, con la hora. |
-| `lecturas_manager` | Jornada, manager, puntos y posición de la última lectura válida, con la hora. |
+| `usuarios` | Quién tiene acceso a la web, con qué papel y a qué manager corresponde. Solo el administrador da altas. |
+| `codigos_acceso` | Código de un solo uso que reparte el bot para entrar en la web, con su caducidad y si ya se ha usado. |
+| `configuracion` | Ajustes editables desde la web y claves guardadas. Las claves se guardan cifradas. |
+| `estado_jugador` | Jornada, futbolista, manager, puntos y estadísticas de la última lectura válida, con la hora. Es lo que el detector compara. |
+| `estado_manager` | Jornada, manager, puntos y posición de la última lectura válida, con la hora. |
 | `candidatos_posicion` | Cambio de puesto detectado y cuántas lecturas seguidas lleva manteniéndose. |
 | `mensajes_enviados` | Clave del hecho ya publicado y hora. Evita repetir tras un reinicio. |
 
 La clave de un hecho debe identificar el acontecimiento, no el texto. Por ejemplo, «gol del futbolista 1234 en la jornada 4, ocurrencia número 2». Así un reinicio no vuelve a anunciar lo mismo.
+
+### Histórico
+
+Estas tablas solo reciben filas nuevas. Nunca se actualiza ni se borra una fila existente.
+
+| Tabla | Contenido | Cuándo se escribe |
+| --- | --- | --- |
+| `historial_jugador` | Jornada, futbolista, manager, puntos y estadísticas completas, con la hora de observación | Cada vez que cambia algo de ese futbolista |
+| `historial_manager` | Jornada, manager, puntos y posición, con la hora | Cada vez que cambia el total o la posición de ese manager |
+| `historial_propiedad` | Futbolista, manager propietario, fecha en que se detectó y fecha en que dejó de tenerlo | Cuando una plantilla cambia de composición |
+| `actividad` | Copia directa del registro de actividad de la liga: tipo de movimiento, manager, futbolista, importe y fecha | Cada vez que aparecen entradas nuevas |
+| `historial_mercado` | Entrada del mercado, futbolista, precio, fecha de expiración, estado y número de pujas | Cuando cambia alguno de esos valores |
+| `valor_futbolista` | Futbolista, fecha, valor de mercado, puntos de la temporada y media | Una fila al día por futbolista |
+
+Solo se escribe cuando algo cambia. Guardar 120 filas idénticas cada minuto no aporta nada y hace la base de datos inmanejable.
+
+La tabla `valor_futbolista` es la excepción: escribe una fila diaria por futbolista aunque no cambie, porque una serie de precios con huecos es más difícil de usar que una completa.
+
+### Por qué estas tablas sirven para el mercado
+
+- `valor_futbolista` da la evolución del precio de cada futbolista a lo largo de la temporada. Es la base de cualquier función de mercado: quién sube, quién baja, cuándo conviene vender.
+- `actividad` es el registro oficial de fichajes y ventas de la liga, con el importe. Dice quién compró qué y por cuánto.
+- `historial_propiedad` dice quién tenía a cada futbolista en cada momento. Sin esa tabla no se puede decir «lo vendiste y ahora marca».
+- `historial_mercado` dice qué salió a la venta, a qué precio y con cuántas pujas.
+
+### Cuánto ocupa
+
+Con 836 futbolistas y una temporada de 38 jornadas, la estimación es esta:
+
+| Tabla | Filas por temporada | Tamaño aproximado |
+| --- | --- | --- |
+| `valor_futbolista` | Unas 250.000 | 12 MB |
+| `historial_jugador` | Unas 80.000 | 40 MB |
+| `historial_manager` | Unas 15.000 | 2 MB |
+| El resto | Unos miles | Menos de 1 MB |
+
+El total queda por debajo de 100 MB. SQLite trabaja cómodo con ese tamaño.
+
+## Lecturas que no dependen de los partidos
+
+Además del sondeo durante los partidos, hay lecturas periódicas cuyo único fin es alimentar el histórico.
+
+| Qué se lee | Cada cuánto | Para qué |
+| --- | --- | --- |
+| Actividad de la liga | Cada 10 minutos | Enterarse de fichajes y ventas casi al momento |
+| Mercado de la liga | Cada 30 minutos | Seguir precios, pujas y qué sale a la venta |
+| Plantilla de cada manager | Una vez al día, y además justo después de detectar actividad | Saber quién tiene a cada futbolista |
+| Valor de mercado de todos los futbolistas | Una vez al día | Serie de precios de la temporada |
+
+Son pocas peticiones. La actividad y el mercado son una petición cada una. Las plantillas son ocho al día. El listado completo de futbolistas es una petición que devuelve los 836 de golpe.
+
+Leer la plantilla justo después de ver actividad nueva sirve para que el cambio de propiedad quede registrado con una hora cercana a la real, en vez de esperar al día siguiente.
 
 ## Cómo se detecta cada hecho
 
@@ -161,17 +275,24 @@ Un manager ya elegido no aparece disponible para otro. Quien se equivocó lo sue
 | Fase | Trabajo | Cómo se sabe que está hecha |
 | --- | --- | --- |
 | 1 | Lector de Fantasy como módulo, con renovación de sesión | Lee los 8 managers y sobrevive a la caducidad del token |
-| 2 | Almacén en SQLite y ciclo de sondeo según el calendario | El proceso se reinicia y no pierde el estado |
+| 2 | Almacén en SQLite, histórico y ciclo de sondeo según el calendario | El proceso se reinicia y no pierde el estado. El histórico registra un cambio de puntos, un fichaje y una variación de precio. |
 | 3 | Bot de Telegram con vinculación y rectificación | Los 8 amigos pueden elegir su manager y cambiarlo |
 | 4 | Detección de hechos y envío por privado | Un gol llega al manager correcto, una sola vez |
 | 5 | Resumen de final de partido por privado | Cada manager con futbolistas en el partido recibe su resumen |
 | 6 | Comentario de grupo con el modelo de lenguaje | Un adelantamiento confirmado produce un comentario con el motivo correcto |
-| 7 | Panel de administración | Las claves se guardan desde la web y se consultan las tablas |
-| 8 | Prueba en una jornada real | El grupo lo usa y se ajusta el volumen de mensajes |
+| 7 | API HTTP y web con entrada del administrador | El usuario entra con contraseña y ve el estado y las tablas |
+| 8 | Web: configuración, claves y usuarios | Las claves se guardan desde la web y se pueden dar altas |
+| 9 | Web: páginas de la liga, dinero, precios y movimientos | Se ve la clasificación, la evolución de precios y el dinero de cada uno |
+| 10 | Acceso de los participantes desde el bot y notificaciones desde la web | Un amigo entra con el enlace del bot y solo ve lo suyo |
+| 11 | Prueba en una jornada real | El grupo lo usa y se ajusta el volumen de mensajes |
 
 Las fases 1 y 2 son la base. La fase 3 se puede hacer en paralelo porque no depende de las anteriores. Las fases 4, 5 y 6 son las que producen mensajes.
 
-El panel de administración va en la fase 7 porque necesita que existan las tablas y la configuración. Mientras tanto, las claves viven en el fichero de secretos generado en el servidor. Si prefieres tener el panel antes, se puede adelantar a la fase 3, pero entonces hay que rehacerlo cuando aparezcan tablas nuevas.
+El orden refleja lo que pidió el usuario: al principio entra solo él, y los participantes acceden cuando la web esté terminada. Por eso el acceso de los amigos está en la fase 10 y no antes.
+
+La fase 7 se puede adelantar si quieres ver algo funcionando pronto. El coste de adelantarla es tener que ampliarla cada vez que aparezca una tabla nueva.
+
+Hasta la fase 8, las claves viven en el fichero de secretos generado en el servidor.
 
 ## Despliegue en el servidor codehive
 
@@ -203,7 +324,9 @@ El puerto 4139 está libre. En el servidor están ocupados del 4100 al 4138, má
 
 ### Un solo contenedor
 
-El bot y el panel de administración son el mismo proceso de Node. El panel escucha en el puerto 3000 del contenedor. El sondeo de Fantasy corre en ese mismo proceso, en segundo plano. No hacen falta contenedores separados.
+El bot, la API y la web son el mismo proceso de Node. Escucha en el puerto 3000 del contenedor: sirve la API bajo una ruta y los ficheros de la web bajo la raíz. El sondeo de Fantasy corre en ese mismo proceso, en segundo plano. No hacen falta contenedores separados.
+
+La web se compila durante la construcción de la imagen de Docker. Vite genera ficheros estáticos que quedan dentro de la imagen. En el contenedor final no hace falta Node para la web, solo para el servidor.
 
 La base de datos SQLite es un fichero. Va en un volumen de Docker para que sobreviva a los redespliegues. No hace falta un contenedor de base de datos.
 

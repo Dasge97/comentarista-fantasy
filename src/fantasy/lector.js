@@ -131,10 +131,52 @@ export class LectorFantasy {
       id: String(entrada.id),
       tipo: Number(entrada.activityTypeId),
       managerId: entrada.user1Id != null ? String(entrada.user1Id) : null,
+      // En una compra a otro manager, user2Id es quien vende y cobra.
+      manager2Id: entrada.user2Id != null ? String(entrada.user2Id) : null,
       futbolistaId: entrada.playerMasterId != null ? String(entrada.playerMasterId) : null,
       importe: entrada.amount != null ? Number(entrada.amount) : null,
+      jornada: entrada.weekNumber != null ? Number(entrada.weekNumber) : null,
       fecha: entrada.createdAt,
     }));
+  }
+
+  /**
+   * Toda la actividad de la liga, recorriendo las páginas hasta el final.
+   * El registro llega hasta el arranque de la liga, así que la primera vez
+   * se descarga el histórico completo.
+   */
+  async actividadCompleta(ligaId, paginasMaximas = 20) {
+    const vistas = new Map();
+    for (let i = 0; i < paginasMaximas; i += 1) {
+      const pagina = await this.actividad(ligaId, i);
+      if (pagina.length === 0) break;
+      const antes = vistas.size;
+      for (const entrada of pagina) vistas.set(entrada.id, entrada);
+      // Si una página no aporta nada nuevo, se ha llegado al final.
+      if (vistas.size === antes) break;
+    }
+    return [...vistas.values()];
+  }
+
+  /** Catálogo completo de futbolistas con su valor de mercado. */
+  async futbolistas() {
+    const datos = await this.#cliente.get(`${this.#cmp}/players?x-lang=es`);
+    return (datos || []).map((f) => ({
+      id: String(f.id),
+      nombre: f.nickname || f.name,
+      posicionId: f.positionId != null ? Number(f.positionId) : null,
+      equipoRealId: f.teamId != null ? String(f.teamId) : null,
+      estado: f.playerStatus || null,
+      valor: f.marketValue != null ? Number(f.marketValue) : null,
+      puntos: f.points != null ? Number(f.points) : null,
+      media: f.averagePoints != null ? Number(f.averagePoints) : null,
+    }));
+  }
+
+  /** Dinero de la cuenta propia. Para un rival responde HTTP 403. */
+  async dineroPropio(equipoId) {
+    const datos = await this.#cliente.get(`${this.#cmp}/teams/${equipoId}/money?x-lang=es`);
+    return { dinero: Number(datos.teamMoney), invertido: Number(datos.teamInvestment ?? 0) };
   }
 
   /**

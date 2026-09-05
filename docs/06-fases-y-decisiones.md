@@ -78,6 +78,12 @@ No hay promesas de latencia, disponibilidad, presupuesto ni cobertura de todos l
 | D13 | El comentario del grupo lleva humor, y los hechos que lo justifican salen medidos de la API | El humor está en la redacción, no en los datos |
 | D14 | Cada amigo se suscribe desde el grupo, elige su manager en el privado y puede rectificar | La lista de managers se lee de la liga; la cuenta de servicio no aparece |
 | D15 | Un manager se lo queda quien lo elige primero, y quien se equivoca lo libera él mismo | No hay administrador que apruebe vinculaciones |
+| D16 | Guardar en la base de datos todo lo que se lea, no solo lo que el bot necesita para el mensaje siguiente | Tablas de histórico que solo crecen, además de las de estado actual |
+| D17 | Leer las plantillas y los valores de mercado con regularidad aunque el MVP no los use | Alimenta funciones de mercado futuras y detecta los movimientos de cada manager |
+| D18 | El proyecto incluye una web visual, no solo un panel de administración | El backend expone una API en JSON y la web es una aplicación de React aparte |
+| D19 | Nadie se registra por su cuenta; el usuario da de alta a cada participante | Hay dos papeles, administrador y participante, con permisos comprobados en el servidor |
+| D20 | Los participantes entran con un enlace de un solo uso que reparte el bot de Telegram | Sin contraseñas ni registro; el administrador entra con contraseña aparte |
+| D21 | Al principio solo entra el usuario, y los amigos cuando la web esté terminada | El acceso de participantes es una de las últimas fases |
 
 ## Orientaciones propuestas, no decisiones cerradas
 

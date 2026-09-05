@@ -16,3 +16,8 @@ data/
 # Ficheros del sistema
 .DS_Store
 Thumbs.db
+
+# Documento operativo con rutas y puertos internos del servidor.
+README_DEPLOY.md
+web/node_modules/
+web/dist/
