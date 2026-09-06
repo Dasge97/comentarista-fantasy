@@ -23,6 +23,25 @@ export const NOMBRE_HECHO = {
   own_goals: 'gol en propia',
 };
 
+/**
+ * Estadísticas de esfuerzo, las que valen para avisar de una buena
+ * actuación cuando pasan de cierto número de puntos.
+ *
+ * Se dejan fuera a propósito: `mins_played`, que solo dice que jugó;
+ * `marca_points`, que es una nota compuesta y no una acción; y
+ * `goals_conceded`, que premia a todo el equipo a la vez cuando dejan la
+ * portería a cero y produciría cinco avisos de golpe.
+ */
+export const ACTUACIONES = {
+  saves: 'paradas',
+  effective_clearance: 'despejes',
+  ball_recovery: 'balones recuperados',
+  won_contest: 'regates ganados',
+  total_scoring_att: 'tiros a puerta',
+  pen_area_entries: 'entradas al área',
+  offtarget_att_assist: 'ocasiones creadas',
+};
+
 const LINEAS = ['goalkeeper', 'defender', 'midfield', 'striker'];
 
 const POSICIONES = {
@@ -43,6 +62,21 @@ function cantidades(estadisticas) {
 }
 
 /**
+ * La otra mitad de cada pareja: cuántos puntos aporta esa estadística.
+ *
+ * Es lo que permite avisar de una buena actuación sin inventarse umbrales.
+ * Fantasy ya dice que seis paradas valen tres puntos, así que basta con
+ * mirar los puntos en vez de adivinar cuántas paradas son muchas.
+ */
+function puntosPorEstadistica(estadisticas) {
+  const salida = {};
+  for (const [clave, valor] of Object.entries(estadisticas || {})) {
+    if (Array.isArray(valor)) salida[clave] = Number(valor[1]);
+  }
+  return salida;
+}
+
+/**
  * Saca los datos de una jornada concreta del histórico de un futbolista.
  *
  * Devuelve null cuando no hay entrada para esa jornada. Ausencia y cero son
@@ -55,6 +89,7 @@ function jornadaDelFutbolista(playerMaster, jornada) {
   return {
     puntos: Number(entrada.totalPoints),
     estadisticas: cantidades(entrada.stats),
+    puntosEstadisticas: puntosPorEstadistica(entrada.stats),
     enOnceIdeal: Boolean(entrada.isInIdealFormation),
   };
 }
@@ -71,6 +106,7 @@ function futbolista(entrada, jornada) {
     // null significa que no hay dato de esa jornada. Nunca se convierte a cero.
     puntos: datos ? datos.puntos : null,
     estadisticas: datos ? datos.estadisticas : null,
+    puntosEstadisticas: datos ? datos.puntosEstadisticas : null,
     enOnceIdeal: datos ? datos.enOnceIdeal : null,
   };
 }

@@ -26,13 +26,37 @@ const GRUPOS = [
   { id: 'fantasy', titulo: 'Fantasy', claves: ['fantasy_email', 'fantasy_password', 'liga_id', 'manager_servicio', 'presupuesto_inicial'] },
   { id: 'telegram', titulo: 'Telegram', claves: ['telegram_token', 'telegram_grupo', 'url_publica', 'saludar_al_entrar', 'bienvenida_grupo'] },
   { id: 'ritmo', titulo: 'Ritmo de lectura', claves: ['segundos_entre_lecturas', 'segundos_en_reposo', 'minutos_antes_del_partido', 'minutos_estabilizacion'] },
-  { id: 'publicacion', titulo: 'Publicación', claves: ['silenciado', 'publicar_privados', 'publicar_grupo', 'lecturas_para_confirmar', 'tono'] },
+  {
+    id: 'publicacion',
+    titulo: 'Publicación',
+    claves: [
+      'silenciado',
+      'publicar_privados',
+      'publicar_grupo',
+      'avisar_actuaciones',
+      'puntos_para_destacar',
+      'avisar_lesionados',
+      'horas_antes_del_cierre',
+      'anunciar_fichajes',
+      'importe_minimo_fichaje',
+      'lecturas_para_confirmar',
+      'tono',
+    ],
+  },
   { id: 'textos', titulo: 'Textos de los avisos', claves: [] },
   { id: 'seguridad', titulo: 'Seguridad', claves: [] },
 ];
 
 // Ajustes que valen sí o no, y se ven mejor como casilla que como campo de texto.
-const CASILLAS = new Set(['publicar_privados', 'publicar_grupo', 'silenciado', 'saludar_al_entrar']);
+const CASILLAS = new Set([
+  'publicar_privados',
+  'publicar_grupo',
+  'silenciado',
+  'saludar_al_entrar',
+  'avisar_actuaciones',
+  'avisar_lesionados',
+  'anunciar_fichajes',
+]);
 
 // Ajustes que necesitan varias líneas.
 const LARGOS = new Set(['tono', 'bienvenida_grupo']);
@@ -43,6 +67,9 @@ const PISTAS = {
   minutos_antes_del_partido: 'Cuánto antes de empezar un partido se pasa al ritmo rápido.',
   minutos_estabilizacion: 'Fantasy sigue ajustando puntos tras el pitido final. Medido: unos cinco minutos.',
   lecturas_para_confirmar: 'Un adelantamiento debe repetirse estas lecturas seguidas antes de comentarlo en el grupo.',
+  puntos_para_destacar: 'Cuántos puntos debe aportar una sola acción para avisar. Con 3 salen las buenas de verdad: seis paradas, cinco despejes. Con 1 llegarían decenas de avisos.',
+  horas_antes_del_cierre: 'Cuánto antes del cierre de la alineación se avisa de lesionados y sancionados.',
+  importe_minimo_fichaje: 'Por debajo de esta cifra el fichaje no se anuncia en el grupo.',
   telegram_grupo: 'Se elige con un botón en la página Telegram, sin escribirlo a mano.',
   manager_servicio: 'La cuenta que lee la liga. Se excluye de las clasificaciones que narra el bot.',
   presupuesto_inicial: 'Con cuánto empezó cada manager. Se deduce solo desde la página Dinero.',
@@ -211,6 +238,7 @@ function AyudaDeGrupo({ id }) {
     ],
     publicacion: [
       'Silenciar corta todo de golpe, privados y grupo.',
+      'Las buenas actuaciones se miden en puntos, no en cantidad de acciones. Fantasy dice cuántos puntos vale cada estadística, así que el umbral se calibra solo para cada posición: seis paradas de un portero y cinco despejes de un defensa valen lo mismo.',
       'El número de lecturas para confirmar existe porque los puntos suben y bajan durante el partido. Con 3, un adelantamiento tarda unos tres minutos en publicarse, pero no se desmiente solo.',
       'El tono es la instrucción de estilo que recibe el modelo. Los hechos no los decide él.',
     ],

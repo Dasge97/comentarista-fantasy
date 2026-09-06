@@ -77,6 +77,17 @@ export const AJUSTES = {
   plantilla_correccion: { defecto: '↩️ Corrección: a <b>{jugador}</b> le han quitado {que}. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de corrección' },
   plantilla_cola_puntos: { defecto: 'Va por {puntos} puntos en esta jornada. Provisional.', secreto: false, titulo: 'Coleta con los puntos del futbolista' },
 
+  // Buenas actuaciones que no son goles: muchas paradas, muchos despejes.
+  // El umbral se mide en puntos que aporta una sola estadística, no en
+  // cantidad de acciones, así se calibra solo para cada posición.
+  avisar_actuaciones: { defecto: '1', secreto: false, titulo: 'Avisar de buenas actuaciones sin gol' },
+  puntos_para_destacar: { defecto: '3', secreto: false, titulo: 'Puntos que debe aportar una acción para avisar' },
+  plantilla_actuacion: {
+    defecto: '👏 <b>{jugador}</b> lleva {cuantas} {que}, y eso le da {puntos_accion} puntos. Lo tienes en tu once.',
+    secreto: false,
+    titulo: 'Aviso de buena actuación',
+  },
+
   // Avisos que no dependen de un partido en juego.
   avisar_lesionados: { defecto: '1', secreto: false, titulo: 'Avisar de lesionados y sancionados antes del cierre' },
   horas_antes_del_cierre: { defecto: '6', secreto: false, titulo: 'Horas de antelación del aviso de lesionados' },

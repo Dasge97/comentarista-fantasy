@@ -36,6 +36,20 @@ ${rellenar(plantillas.colaPuntos)}` : '';
   return rellenar(plantilla) + cola;
 }
 
+/**
+ * Aviso privado de una buena actuación: muchas paradas, muchos despejes.
+ *
+ * Los huecos son {jugador}, {cuantas}, {que} y {puntos_accion}.
+ */
+export function avisoDeActuacion({ actuacion, futbolista, plantilla }) {
+  const texto = plantilla || '👏 <b>{jugador}</b> lleva {cuantas} {que}, y eso le da {puntos_accion} puntos.';
+  return String(texto)
+    .replaceAll('{jugador}', escapar(futbolista))
+    .replaceAll('{cuantas}', String(actuacion.cuantas))
+    .replaceAll('{que}', escapar(actuacion.nombre))
+    .replaceAll('{puntos_accion}', String(actuacion.puntosQueAporta));
+}
+
 /** Resumen privado de lo que han hecho tus futbolistas en un partido. */
 export function resumenPrivadoDePartido({ resumen, marcador, equipos }) {
   const cabecera = `📊 <b>Final del partido</b>${marcador ? ` · ${escapar(marcador)}` : ''}`;

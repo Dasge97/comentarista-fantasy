@@ -1,6 +1,6 @@
 import { LectorFantasy } from '../fantasy/lector.js';
-import { adelantamientos, culpables, hechosDeJugador, resumenDePartido } from './detector.js';
-import { avisoDeHecho, datosParaElComentario, resumenPrivadoDePartido } from './mensajes.js';
+import { actuacionesDestacadas, adelantamientos, culpables, hechosDeJugador, resumenDePartido } from './detector.js';
+import { avisoDeActuacion, avisoDeHecho, datosParaElComentario, resumenPrivadoDePartido } from './mensajes.js';
 import { calcularDinero, TIPOS } from './dinero.js';
 import { hoy } from '../db/db.js';
 import { Simulacion } from './simulacion.js';
@@ -291,14 +291,37 @@ export class Servicio {
   async #publicarPrivados(cambios) {
     if (!this.#config.activo('publicar_privados') || this.#config.activo('silenciado')) return;
 
+    const umbral = this.#config.numero('puntos_para_destacar');
+    const avisarActuaciones = this.#config.activo('avisar_actuaciones');
+
     for (const cambio of cambios) {
       const hechos = hechosDeJugador(cambio);
-      if (hechos.length === 0) continue;
+      const actuaciones =
+        avisarActuaciones && !cambio.esPrimeraLectura ? actuacionesDestacadas(cambio.jugador, umbral) : [];
+      if (hechos.length === 0 && actuaciones.length === 0) continue;
 
       const manager = this.#almacen.managerPorEquipo(cambio.equipoId);
       if (!manager) continue;
       const vinculacion = this.#usuarios.vinculacionDeManager(manager.manager_id);
       if (!vinculacion) continue;
+
+      // Una buena actuación se avisa una sola vez por jornada y estadística.
+      // Si el portero pasa de tres a cuatro puntos por paradas, no hace falta
+      // repetir el mensaje.
+      for (const actuacion of actuaciones) {
+        const clave = `privado:${vinculacion.telegram_id}:actuacion:${cambio.jornada}:${cambio.futbolistaId}:${actuacion.tipo}`;
+        if (this.#almacen.yaEnviado(clave)) continue;
+
+        const texto = avisoDeActuacion({
+          actuacion,
+          futbolista: cambio.jugador?.nombre || cambio.futbolistaId,
+          plantilla: this.#config.obtener('plantilla_actuacion'),
+        });
+        const resultado = await this.#telegram.enviar(vinculacion.telegram_id, texto);
+        if (resultado.ok || resultado.bloqueado) {
+          this.#almacen.marcarEnviado(clave, `privado:${vinculacion.telegram_id}`, texto);
+        }
+      }
 
       for (const hecho of hechos) {
         const clave = `privado:${vinculacion.telegram_id}:${hecho.clave}`;

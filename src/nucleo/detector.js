@@ -1,4 +1,4 @@
-import { HECHOS, NOMBRE_HECHO } from '../fantasy/normalizar.js';
+import { ACTUACIONES, HECHOS, NOMBRE_HECHO } from '../fantasy/normalizar.js';
 
 /**
  * Convierte diferencias entre dos lecturas en hechos narrables.
@@ -67,6 +67,37 @@ export function hechosDeJugador(cambio) {
     }
   }
   return hechos;
+}
+
+/**
+ * Actuaciones que merecen aviso aunque no sean un gol.
+ *
+ * No hay que inventarse cuántas paradas son muchas: Fantasy dice cuántos
+ * puntos aporta cada estadística, así que se avisa cuando una sola pasa del
+ * umbral. Con umbral 3 salen las cosas de verdad buenas: en tres jornadas de
+ * la liga, 3 puntos por paradas se vio dos veces y 3 o más por despejes,
+ * siete. Con umbral 1 saldrían decenas.
+ *
+ * @param {object} jugador Futbolista tal como lo devuelve la alineación.
+ * @param {number} umbral Puntos mínimos que debe aportar una estadística.
+ */
+export function actuacionesDestacadas(jugador, umbral) {
+  const puntos = jugador?.puntosEstadisticas;
+  const cantidades = jugador?.estadisticas;
+  if (!puntos || !cantidades) return [];
+
+  const salida = [];
+  for (const [clave, nombre] of Object.entries(ACTUACIONES)) {
+    const aporta = Number(puntos[clave] ?? 0);
+    if (aporta < umbral) continue;
+    salida.push({
+      tipo: clave,
+      nombre,
+      cuantas: Number(cantidades[clave] ?? 0),
+      puntosQueAporta: aporta,
+    });
+  }
+  return salida;
 }
 
 /**

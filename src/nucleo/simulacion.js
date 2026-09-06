@@ -1,5 +1,5 @@
-import { hechosDeJugador, resumenDePartido } from './detector.js';
-import { avisoDeHecho, datosParaElComentario, resumenPrivadoDePartido } from './mensajes.js';
+import { actuacionesDestacadas, hechosDeJugador, resumenDePartido } from './detector.js';
+import { avisoDeActuacion, avisoDeHecho, datosParaElComentario, resumenPrivadoDePartido } from './mensajes.js';
 
 const CABECERA = '🧪 <i>Simulación con datos reales de una jornada ya jugada. No está pasando ahora.</i>';
 
@@ -92,6 +92,21 @@ export class Simulacion {
           plantillas: this.#plantillas(),
         });
         await avisar(destino, texto, `privado: ${hecho.nombre} de ${jugador.nombre}`);
+      }
+    }
+
+    // ---- Buenas actuaciones sin gol ----
+    if (this.#config.activo('avisar_actuaciones')) {
+      const umbral = this.#config.numero('puntos_para_destacar');
+      for (const jugador of alineacion.jugadores) {
+        for (const actuacion of actuacionesDestacadas(jugador, umbral)) {
+          const texto = avisoDeActuacion({
+            actuacion,
+            futbolista: jugador.nombre,
+            plantilla: this.#config.obtener('plantilla_actuacion'),
+          });
+          await avisar(destino, texto, `privado: ${actuacion.nombre} de ${jugador.nombre}`);
+        }
       }
     }
 
