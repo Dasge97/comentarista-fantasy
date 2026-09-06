@@ -89,10 +89,12 @@ export const AJUSTES = {
   },
 
   // Avisos que no dependen de un partido en juego.
+  //
+  // El bot no habla de mercado: los fichajes y las ventas se guardan para la
+  // web, pero no se anuncian en Telegram. Decidido por el usuario el
+  // 6 de septiembre de 2026.
   avisar_lesionados: { defecto: '1', secreto: false, titulo: 'Avisar de lesionados y sancionados antes del cierre' },
   horas_antes_del_cierre: { defecto: '6', secreto: false, titulo: 'Horas de antelación del aviso de lesionados' },
-  anunciar_fichajes: { defecto: '1', secreto: false, titulo: 'Anunciar fichajes y ventas en el grupo' },
-  importe_minimo_fichaje: { defecto: '5000000', secreto: false, titulo: 'Importe mínimo para anunciar un fichaje' },
   dias_de_venta_reciente: { defecto: '30', secreto: false, titulo: 'Días para considerar reciente una venta' },
 
   // Mercado.

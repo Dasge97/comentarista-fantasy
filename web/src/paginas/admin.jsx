@@ -37,8 +37,6 @@ const GRUPOS = [
       'puntos_para_destacar',
       'avisar_lesionados',
       'horas_antes_del_cierre',
-      'anunciar_fichajes',
-      'importe_minimo_fichaje',
       'lecturas_para_confirmar',
       'tono',
     ],
@@ -55,7 +53,6 @@ const CASILLAS = new Set([
   'saludar_al_entrar',
   'avisar_actuaciones',
   'avisar_lesionados',
-  'anunciar_fichajes',
 ]);
 
 // Ajustes que necesitan varias líneas.
@@ -69,7 +66,6 @@ const PISTAS = {
   lecturas_para_confirmar: 'Un adelantamiento debe repetirse estas lecturas seguidas antes de comentarlo en el grupo.',
   puntos_para_destacar: 'Cuántos puntos debe aportar una sola acción para avisar. Con 3 salen las buenas de verdad: seis paradas, cinco despejes. Con 1 llegarían decenas de avisos.',
   horas_antes_del_cierre: 'Cuánto antes del cierre de la alineación se avisa de lesionados y sancionados.',
-  importe_minimo_fichaje: 'Por debajo de esta cifra el fichaje no se anuncia en el grupo.',
   telegram_grupo: 'Se elige con un botón en la página Telegram, sin escribirlo a mano.',
   manager_servicio: 'La cuenta que lee la liga. Se excluye de las clasificaciones que narra el bot.',
   presupuesto_inicial: 'Con cuánto empezó cada manager. Se deduce solo desde la página Dinero.',

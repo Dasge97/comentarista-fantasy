@@ -1,7 +1,7 @@
 import { LectorFantasy } from '../fantasy/lector.js';
 import { actuacionesDestacadas, adelantamientos, culpables, hechosDeJugador, resumenDePartido } from './detector.js';
 import { avisoDeActuacion, avisoDeHecho, datosParaElComentario, resumenPrivadoDePartido } from './mensajes.js';
-import { calcularDinero, TIPOS } from './dinero.js';
+import { calcularDinero } from './dinero.js';
 import { hoy } from '../db/db.js';
 import { Simulacion } from './simulacion.js';
 
@@ -507,7 +507,6 @@ export class Servicio {
         // Un movimiento cambia las plantillas: conviene mirarlas ya, para
         // que el cambio de propietario quede con una hora cercana a la real.
         await this.#sincronizarPlantillas(ligaId);
-        await this.#anunciarFichajes(nuevas);
       }
     } catch (error) {
       this.#anotar('aviso', `No se pudo leer la actividad: ${error.message}`);
@@ -720,47 +719,6 @@ export class Servicio {
 
       const resultado = await this.#telegram.enviar(vinculacion.telegram_id, texto);
       if (resultado.ok || resultado.bloqueado) this.#almacen.marcarEnviado(clave, `privado:${vinculacion.telegram_id}`, texto);
-    }
-  }
-
-  /**
-   * Anuncia en el grupo los fichajes y ventas que superen un importe.
-   *
-   * Sin el filtro por importe el grupo recibiría cada compra de tres
-   * millones, que no interesa a nadie.
-   */
-  async #anunciarFichajes(movimientos) {
-    const grupo = this.#config.obtener('telegram_grupo');
-    if (!grupo || !this.#config.activo('anunciar_fichajes') || this.#config.activo('silenciado')) return;
-    if (!this.#config.activo('publicar_grupo')) return;
-
-    const minimo = this.#config.numero('importe_minimo_fichaje');
-    const interesantes = movimientos.filter(
-      (m) => m.importe != null && m.importe >= minimo && [TIPOS.COMPRA_AL_MERCADO, TIPOS.COMPRA_A_MANAGER, TIPOS.VENTA].includes(m.tipo),
-    );
-    if (interesantes.length === 0) return;
-
-    // Solo se anuncia lo de las últimas horas. Al arrancar por primera vez
-    // hay cientos de movimientos viejos, y anunciarlos todos sería absurdo.
-    const limite = new Date(Date.now() - 6 * 3600000).toISOString();
-
-    for (const m of interesantes) {
-      if (m.fecha < limite) continue;
-      const clave = `fichaje:${m.id}`;
-      if (this.#almacen.yaEnviado(clave)) continue;
-
-      const manager = this.#almacen.managers().find((x) => x.manager_id === m.managerId);
-      const futbolista = this.#almacen.futbolista(m.futbolistaId);
-      if (!manager || !futbolista) continue;
-
-      const millones = (v) => `${(v / 1e6).toLocaleString('es-ES', { maximumFractionDigits: 1 })} M`;
-      const texto =
-        m.tipo === TIPOS.VENTA
-          ? `💸 <b>${manager.nombre}</b> ha vendido a <b>${futbolista.nombre}</b> por ${millones(m.importe)}.`
-          : `📝 <b>${manager.nombre}</b> ficha a <b>${futbolista.nombre}</b> por ${millones(m.importe)}.`;
-
-      const resultado = await this.#telegram.enviar(grupo, texto);
-      if (resultado.ok) this.#almacen.marcarEnviado(clave, 'grupo', texto);
     }
   }
 
