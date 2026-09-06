@@ -92,6 +92,8 @@ export function Futbolistas() {
       </Cabecera>
       <Aviso>{error}</Aviso>
 
+      {abierto ? <Ficha id={abierto.id} nombre={abierto.nombre} alCerrar={() => setAbierto(null)} /> : null}
+
       <Tarjeta titulo="Filtros">
         <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
           <Campo etiqueta="Nombre">
@@ -213,13 +215,30 @@ export function Futbolistas() {
                     </span>
                   ),
               },
-              { titulo: 'Puntos', valor: (f) => f.puntos_temporada ?? '—', numerica: true },
-              { titulo: 'Media', valor: (f) => (f.media == null ? '—' : f.media.toFixed(1)), numerica: true },
+              {
+                titulo: 'Puntos',
+                numerica: true,
+                valor: (f) => (f.puntos_temporada == null ? <span className="suave">—</span> : f.puntos_temporada),
+              },
+              {
+                titulo: 'Media',
+                numerica: true,
+                valor: (f) => (f.media == null ? <span className="suave">—</span> : f.media.toFixed(1)),
+              },
               {
                 titulo: '',
                 valor: (f) => (
-                  <button type="button" className="accion suave" onClick={() => setAbierto(f)}>
-                    Ver
+                  <button
+                    type="button"
+                    className={`accion suave ${abierto?.id === f.id ? 'elegido' : ''}`}
+                    onClick={() => {
+                      setAbierto(f);
+                      // La ficha se dibuja arriba del todo: sin subir, el
+                      // botón parecía no hacer nada.
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    Ficha
                   </button>
                 ),
               },
@@ -250,7 +269,6 @@ export function Futbolistas() {
         </Tarjeta>
       )}
 
-      {abierto ? <Ficha id={abierto.id} nombre={abierto.nombre} alCerrar={() => setAbierto(null)} /> : null}
     </>
   );
 }
@@ -264,11 +282,21 @@ function Ficha({ id, nombre, alCerrar }) {
 
   const puntos = (datos.serie || []).map((f) => ({ fecha: f.fecha, valor: f.valor }));
 
+  const NOMBRE_POSICION = { 1: 'Portero', 2: 'Defensa', 3: 'Centrocampista', 4: 'Delantero', 5: 'Entrenador' };
+
   return (
     <>
-      <div className="botonera" style={{ margin: '24px 0 12px' }}>
+      <div className="botonera" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
+        <strong style={{ fontSize: 18 }}>
+          {datos.futbolista.nombre}{' '}
+          <span className="suave" style={{ fontWeight: 400, fontSize: 14 }}>
+            {NOMBRE_POSICION[datos.futbolista.posicion_id] || ''}
+            {datos.futbolista.puntos_temporada != null ? ` · ${datos.futbolista.puntos_temporada} puntos` : ''}
+            {datos.futbolista.media != null ? ` · media ${datos.futbolista.media.toFixed(1)}` : ''}
+          </span>
+        </strong>
         <button type="button" className="accion suave" onClick={alCerrar}>
-          Cerrar la ficha
+          Cerrar
         </button>
       </div>
 

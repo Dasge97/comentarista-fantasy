@@ -494,17 +494,22 @@ export class Servicio {
     }
 
 
-    // Catálogo y valores: una vez al día basta.
-    if (!this.#almacen.hayValoresDe(hoy())) {
-      try {
-        const futbolistas = await this.#lector.futbolistas();
-        this.#almacen.guardarFutbolistas(futbolistas);
+    // El catálogo se refresca en cada ciclo lento, no una vez al día: es una
+    // sola consulta y trae el estado, los puntos, la media y el valor de los
+    // 836 futbolistas. Sin refrescarlo, un futbolista que se lesiona hoy
+    // seguiría figurando como disponible hasta mañana.
+    try {
+      const futbolistas = await this.#lector.futbolistas();
+      this.#almacen.guardarFutbolistas(futbolistas);
+
+      // La fila diaria de valor, en cambio, con una vez al día basta.
+      if (!this.#almacen.hayValoresDe(hoy())) {
         this.#almacen.guardarValoresDelDia(futbolistas);
         await this.#sincronizarPlantillas(ligaId);
         this.#anotar('info', `Valores del día guardados: ${futbolistas.length} futbolistas`);
-      } catch (error) {
-        this.#anotar('aviso', `No se pudieron leer los valores de mercado: ${error.message}`);
       }
+    } catch (error) {
+      this.#anotar('aviso', `No se pudo leer el catálogo de futbolistas: ${error.message}`);
     }
   }
 
