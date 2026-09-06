@@ -307,4 +307,16 @@ export const MIGRACIONES = [
       ALTER TABLE futbolistas ADD COLUMN valor_actual INTEGER;
     `,
   },
+  {
+    // Marca de cuándo se trajo la serie completa de precios.
+    //
+    // Antes se deducía de cuántas filas de valor tenía el futbolista, y eso
+    // fallaba: quien tiene una serie corta de verdad, por llevar poco en la
+    // competición, nunca alcanzaba el mínimo y se volvía a pedir en cada
+    // tanda. El bucle se quedaba dando vueltas sobre los mismos.
+    nombre: '009-marca-de-historico-traido',
+    sql: `
+      ALTER TABLE futbolistas ADD COLUMN historico_traido_en TEXT;
+    `,
+  },
 ];

@@ -608,30 +608,24 @@ export class Servicio {
 
   /** Una tanda del relleno de precios. Devuelve cuántos ha traído. */
   async #traerPreciosHistoricos(porTanda) {
-    // Menos de diez días guardados significa que solo están las filas
-    // diarias que escribe el ciclo lento, no la serie de la temporada.
-    const pendientes = this.#almacen.futbolistasSinHistorico(10, porTanda);
+    const pendientes = this.#almacen.futbolistasSinHistorico(porTanda);
     if (pendientes.length === 0) return 0;
 
     let traidos = 0;
     for (const id of pendientes) {
       try {
         const serie = await this.#lector.historicoDeValor(id);
-        if (serie.length > 0) {
-          this.#almacen.guardarHistoricoDeValor(id, serie);
-          traidos += 1;
-        } else {
-          // Sin histórico no hay nada que traer. Se le pone una fila con el
-          // valor de hoy para que deje de salir como pendiente.
-          this.#almacen.guardarHistoricoDeValor(id, [{ fecha: hoy(), valor: null, pujas: null }]);
-        }
+        if (serie.length > 0) this.#almacen.guardarHistoricoDeValor(id, serie);
+        // Se marca aunque venga vacía. Un futbolista sin histórico no lo va
+        // a tener mañana, y sin la marca volvería a pedirse siempre.
+        this.#almacen.marcarHistoricoTraido(id);
+        traidos += 1;
       } catch {
-        // Un fallo suelto se reintenta en la siguiente tanda.
+        // Un fallo suelto no se marca: se reintenta en la siguiente tanda.
       }
     }
     if (traidos > 0) {
-      const quedan = this.#almacen.futbolistasSinHistorico(10, 1000).length;
-      this.#anotar('info', `Precios históricos: ${traidos} traídos, quedan ${quedan}`);
+      this.#anotar('info', `Precios históricos: ${traidos} traídos, quedan ${this.#almacen.cuantosSinHistorico()}`);
     }
     return traidos;
   }

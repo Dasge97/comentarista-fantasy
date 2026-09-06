@@ -488,16 +488,26 @@ export class Almacen {
     return entradas.length;
   }
 
-  /** Futbolistas cuya serie de precios todavía no se ha traído entera. */
-  futbolistasSinHistorico(minimoDeDias = 5, limite = 200) {
+  /**
+   * Futbolistas a los que todavía no se les ha pedido la serie de precios.
+   *
+   * Se mira una marca propia, no cuántas filas tienen: un futbolista que
+   * lleva pocos días en la competición tiene una serie corta de verdad, y
+   * contando filas volvía a salir como pendiente en cada tanda.
+   */
+  futbolistasSinHistorico(limite = 60) {
     return this.#db
-      .prepare(`
-        SELECT f.id FROM futbolistas f
-        WHERE (SELECT COUNT(*) FROM valor_futbolista v WHERE v.futbolista_id = f.id) < ?
-        LIMIT ?
-      `)
-      .all(minimoDeDias, limite)
+      .prepare('SELECT id FROM futbolistas WHERE historico_traido_en IS NULL LIMIT ?')
+      .all(limite)
       .map((f) => f.id);
+  }
+
+  cuantosSinHistorico() {
+    return this.#db.prepare('SELECT COUNT(*) AS n FROM futbolistas WHERE historico_traido_en IS NULL').get().n;
+  }
+
+  marcarHistoricoTraido(futbolistaId) {
+    this.#db.prepare('UPDATE futbolistas SET historico_traido_en = ? WHERE id = ?').run(ahora(), String(futbolistaId));
   }
 
   hayValoresDe(fecha) {
