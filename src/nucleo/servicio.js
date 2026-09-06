@@ -126,8 +126,14 @@ export class Servicio {
 
     if (ritmo.leerPuntuacion) {
       await this.#leerPuntuacion(jornada.numero);
-      await this.#resumenesDePartidosTerminados(jornada.numero, partidos);
     }
+
+    // Los resúmenes se miran en todos los ciclos, no solo en los rápidos.
+    // La condición para enviarlos se cumple justo cuando termina la ventana
+    // de ajuste, que es justo cuando el ritmo deja de ser rápido: si se
+    // miraran solo entonces, el resumen del último partido del día no se
+    // enviaría nunca.
+    await this.#resumenesDePartidosTerminados(jornada.numero, partidos);
 
     // El ciclo lento son unas quince peticiones. Durante un partido estorba,
     // así que se pospone: lo que importa entonces es la puntuación.
@@ -174,7 +180,10 @@ export class Servicio {
     // Tras el pitido final la puntuación sigue moviéndose unos minutos. Se
     // mide desde el momento en que el partido pasó a finalizado, no desde la
     // última lectura, que cambia cada minuto.
-    const desde = new Date(ahora - estabilizacion).toISOString();
+    //
+    // La ventana se alarga cinco minutos más de lo que dura el ajuste, para
+    // que haya ciclos rápidos también después de que toque enviar el resumen.
+    const desde = new Date(ahora - estabilizacion - 5 * 60000).toISOString();
     if (this.#almacen.partidosReciénTerminados(jornada, ESTADO_FINALIZADO, desde).length > 0) {
       return { nombre: 'ajustando puntos tras el partido', leerPuntuacion: true, esperaMs: rapido };
     }
