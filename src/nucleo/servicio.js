@@ -84,6 +84,7 @@ export class Servicio {
     this.#vivo = true;
     this.estado.arrancado = true;
     this.#bucle();
+    this.#bucleDePrecios();
   }
 
   parar() {
@@ -492,13 +493,6 @@ export class Servicio {
       this.#anotar('aviso', `No se pudieron completar las tareas de fondo: ${error.message}`);
     }
 
-    // Los precios históricos se traen poco a poco, para no hacer 836
-    // consultas seguidas en el mismo ciclo.
-    try {
-      await this.#traerPreciosHistoricos();
-    } catch (error) {
-      this.#anotar('aviso', `No se pudieron traer precios históricos: ${error.message}`);
-    }
 
     // Catálogo y valores: una vez al día basta.
     if (!this.#almacen.hayValoresDe(hoy())) {
@@ -581,16 +575,38 @@ export class Servicio {
   }
 
   /**
-   * Trae la serie completa de precios de los futbolistas que aún no la
-   * tienen, de tanda en tanda.
+   * Trae la serie completa de precios de cada futbolista, en su propio bucle.
    *
    * Fantasy devuelve la temporada entera de una vez por futbolista, pero son
-   * 836 consultas. Se hacen de 40 en 40 para no bloquear el ciclo ni cargar
-   * el servidor de Fantasy.
+   * 836 consultas. Van aparte del ciclo principal para no retrasar la lectura
+   * de puntos, y con una pausa entre tandas para no castigar a Fantasy.
+   *
+   * Cuando no queda nadie pendiente el bucle se duerme una hora: solo tiene
+   * que despertar cuando aparecen futbolistas nuevos en el catálogo.
    */
-  async #traerPreciosHistoricos(porTanda = 40) {
-    const pendientes = this.#almacen.futbolistasSinHistorico(5, porTanda);
-    if (pendientes.length === 0) return;
+  async #bucleDePrecios() {
+    while (this.#vivo) {
+      let espera = 3600000;
+      try {
+        if (this.configurado) {
+          const traidos = await this.#traerPreciosHistoricos(60);
+          // Mientras queden pendientes se sigue enseguida.
+          if (traidos > 0) espera = 5000;
+        }
+      } catch (error) {
+        this.#anotar('aviso', `Fallo al traer precios históricos: ${error.message}`);
+        espera = 60000;
+      }
+      await new Promise((r) => setTimeout(r, espera));
+    }
+  }
+
+  /** Una tanda del relleno de precios. Devuelve cuántos ha traído. */
+  async #traerPreciosHistoricos(porTanda) {
+    // Menos de diez días guardados significa que solo están las filas
+    // diarias que escribe el ciclo lento, no la serie de la temporada.
+    const pendientes = this.#almacen.futbolistasSinHistorico(10, porTanda);
+    if (pendientes.length === 0) return 0;
 
     let traidos = 0;
     for (const id of pendientes) {
@@ -599,13 +615,20 @@ export class Servicio {
         if (serie.length > 0) {
           this.#almacen.guardarHistoricoDeValor(id, serie);
           traidos += 1;
+        } else {
+          // Sin histórico no hay nada que traer. Se le pone una fila con el
+          // valor de hoy para que deje de salir como pendiente.
+          this.#almacen.guardarHistoricoDeValor(id, [{ fecha: hoy(), valor: null, pujas: null }]);
         }
       } catch {
-        // Un futbolista sin histórico no es un problema: se reintenta en la
-        // siguiente tanda y, si nunca lo tiene, deja de aparecer.
+        // Un fallo suelto se reintenta en la siguiente tanda.
       }
     }
-    if (traidos > 0) this.#anotar('info', `Precios históricos traídos de ${traidos} futbolistas`);
+    if (traidos > 0) {
+      const quedan = this.#almacen.futbolistasSinHistorico(10, 1000).length;
+      this.#anotar('info', `Precios históricos: ${traidos} traídos, quedan ${quedan}`);
+    }
+    return traidos;
   }
 
   /**
