@@ -277,4 +277,34 @@ export const MIGRACIONES = [
       );
     `,
   },
+  {
+    // Fantasy devuelve el valor de mercado de cada día de la temporada, no
+    // solo el de hoy. Y da también cuántas pujas tuvo ese día.
+    //
+    // Los equipos reales llegaban solo como número. Sin sus nombres, los
+    // partidos se leen como «20 contra 26».
+    nombre: '007-precios-historicos-y-equipos',
+    sql: `
+      ALTER TABLE valor_futbolista ADD COLUMN pujas INTEGER;
+
+      CREATE TABLE equipos (
+        id             TEXT PRIMARY KEY,
+        nombre         TEXT NOT NULL,
+        escudo         TEXT,
+        actualizado_en TEXT NOT NULL
+      );
+
+      CREATE INDEX idx_valor_futbolista ON valor_futbolista (futbolista_id, fecha);
+    `,
+  },
+  {
+    // Puntos y media viven en el catálogo de futbolistas, no solo en la
+    // serie diaria: la lista con filtros necesita ordenar por ellos.
+    nombre: '008-puntos-en-el-catalogo',
+    sql: `
+      ALTER TABLE futbolistas ADD COLUMN puntos_temporada INTEGER;
+      ALTER TABLE futbolistas ADD COLUMN media REAL;
+      ALTER TABLE futbolistas ADD COLUMN valor_actual INTEGER;
+    `,
+  },
 ];

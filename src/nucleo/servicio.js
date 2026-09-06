@@ -1,7 +1,7 @@
 import { LectorFantasy } from '../fantasy/lector.js';
 import { adelantamientos, culpables, hechosDeJugador, resumenDePartido } from './detector.js';
 import { avisoDeHecho, datosParaElComentario, resumenPrivadoDePartido } from './mensajes.js';
-import { calcularDinero } from './dinero.js';
+import { calcularDinero, TIPOS } from './dinero.js';
 import { hoy } from '../db/db.js';
 import { Simulacion } from './simulacion.js';
 
@@ -276,6 +276,9 @@ export class Servicio {
       penalty_save: this.#config.obtener('plantilla_penalty_save'),
       penalty_won: this.#config.obtener('plantilla_penalty_won'),
       penalty_failed: this.#config.obtener('plantilla_penalty_failed'),
+      red_card: this.#config.obtener('plantilla_red_card'),
+      second_yellow_card: this.#config.obtener('plantilla_second_yellow_card'),
+      own_goals: this.#config.obtener('plantilla_own_goals'),
       correccion: this.#config.obtener('plantilla_correccion'),
       colaPuntos: this.#config.obtener('plantilla_cola_puntos'),
     };
@@ -364,10 +367,19 @@ export class Servicio {
     for (const a of confirmados) {
       for (const c of culpables(cambiosDeJugador, a.adelanta).slice(0, 2)) {
         const jugador = cambiosDeJugador.find((x) => x.futbolistaId === c.futbolistaId)?.jugador;
+        const vendedor = c.hechos.length ? this.#quienLoVendio(c.futbolistaId) : null;
         causas.push({
           manager: nombre(a.adelanta),
           futbolista: jugador?.nombre || c.futbolistaId,
           que: c.hechos.length ? c.hechos.map((h) => h.nombre).join(' y ') : `${c.diferencia > 0 ? '+' : ''}${c.diferencia} puntos`,
+          // Quien lo soltó hace poco. Convierte un gol en una historia.
+          loVendio: vendedor
+            ? {
+                manager: vendedor.manager,
+                haceDias: vendedor.diasDesde,
+                porCuanto: vendedor.importe,
+              }
+            : undefined,
         });
       }
     }
@@ -459,6 +471,7 @@ export class Servicio {
         // Un movimiento cambia las plantillas: conviene mirarlas ya, para
         // que el cambio de propietario quede con una hora cercana a la real.
         await this.#sincronizarPlantillas(ligaId);
+        await this.#anunciarFichajes(nuevas);
       }
     } catch (error) {
       this.#anotar('aviso', `No se pudo leer la actividad: ${error.message}`);
@@ -473,8 +486,18 @@ export class Servicio {
     try {
       const jornada = await this.#jornadaActual();
       await this.#rellenarJornadasPasadas(jornada.numero);
+      await this.#traerEquipos(jornada.numero);
+      await this.#avisarDeLesionados(jornada);
     } catch (error) {
-      this.#anotar('aviso', `No se pudieron recuperar las jornadas pasadas: ${error.message}`);
+      this.#anotar('aviso', `No se pudieron completar las tareas de fondo: ${error.message}`);
+    }
+
+    // Los precios históricos se traen poco a poco, para no hacer 836
+    // consultas seguidas en el mismo ciclo.
+    try {
+      await this.#traerPreciosHistoricos();
+    } catch (error) {
+      this.#anotar('aviso', `No se pudieron traer precios históricos: ${error.message}`);
     }
 
     // Catálogo y valores: una vez al día basta.
@@ -546,6 +569,172 @@ export class Servicio {
       .all(jornada);
     const actualizar = this.#almacen.db.prepare('UPDATE estado_manager SET posicion = ? WHERE jornada = ? AND equipo_id = ?');
     filas.forEach((fila, indice) => actualizar.run(indice + 1, jornada, fila.equipo_id));
+  }
+
+  /** Nombres y escudos de los equipos reales. Sin esto los partidos son números. */
+  async #traerEquipos(jornada) {
+    if (this.#almacen.hayEquipos()) return;
+    const equipos = await this.#lector.equipos(jornada);
+    if (equipos.length === 0) return;
+    this.#almacen.guardarEquipos(equipos);
+    this.#anotar('info', `Nombres de ${equipos.length} equipos guardados`);
+  }
+
+  /**
+   * Trae la serie completa de precios de los futbolistas que aún no la
+   * tienen, de tanda en tanda.
+   *
+   * Fantasy devuelve la temporada entera de una vez por futbolista, pero son
+   * 836 consultas. Se hacen de 40 en 40 para no bloquear el ciclo ni cargar
+   * el servidor de Fantasy.
+   */
+  async #traerPreciosHistoricos(porTanda = 40) {
+    const pendientes = this.#almacen.futbolistasSinHistorico(5, porTanda);
+    if (pendientes.length === 0) return;
+
+    let traidos = 0;
+    for (const id of pendientes) {
+      try {
+        const serie = await this.#lector.historicoDeValor(id);
+        if (serie.length > 0) {
+          this.#almacen.guardarHistoricoDeValor(id, serie);
+          traidos += 1;
+        }
+      } catch {
+        // Un futbolista sin histórico no es un problema: se reintenta en la
+        // siguiente tanda y, si nunca lo tiene, deja de aparecer.
+      }
+    }
+    if (traidos > 0) this.#anotar('info', `Precios históricos traídos de ${traidos} futbolistas`);
+  }
+
+  /**
+   * Avisa a cada manager de los lesionados y sancionados que tiene, cuando
+   * se acerca el cierre de la alineación.
+   *
+   * Es el único aviso del bot que evita perder puntos de verdad, en vez de
+   * contar lo que ya ha pasado.
+   */
+  async #avisarDeLesionados(jornada) {
+    if (!this.#config.activo('avisar_lesionados') || this.#config.activo('silenciado')) return;
+    if (!this.#config.activo('publicar_privados')) return;
+    if (!jornada.cierra) return;
+
+    const cierre = new Date(jornada.cierra).getTime();
+    const faltan = cierre - Date.now();
+    const ventana = this.#config.numero('horas_antes_del_cierre') * 3600000;
+    if (faltan <= 0 || faltan > ventana) return;
+
+    const nombres = { injured: 'lesionado', suspended: 'sancionado', doubtful: 'en duda' };
+
+    for (const manager of this.#almacen.managersReales()) {
+      const vinculacion = this.#usuarios.vinculacionDeManager(manager.manager_id);
+      if (!vinculacion) continue;
+
+      const conProblema = this.#almacen.futbolistasConProblema(manager.equipo_id);
+      if (conProblema.length === 0) continue;
+
+      // Una vez por jornada y manager: el aviso no debe repetirse en cada ciclo.
+      const clave = `lesionados:${jornada.numero}:${manager.manager_id}`;
+      if (this.#almacen.yaEnviado(clave)) continue;
+
+      const horas = Math.max(1, Math.round(faltan / 3600000));
+      const lineas = conProblema.map((f) => `· <b>${f.nombre}</b>: ${nombres[f.estado] || f.estado}`);
+      const texto = [
+        `🩹 <b>Ojo a tu plantilla</b>`,
+        `La jornada ${jornada.numero} cierra en unas ${horas} horas y tienes esto:`,
+        '',
+        ...lineas,
+        '',
+        'Míralo antes de que cierre, no vaya a ser que alguno esté en tu once.',
+      ].join('\n');
+
+      const resultado = await this.#telegram.enviar(vinculacion.telegram_id, texto);
+      if (resultado.ok || resultado.bloqueado) this.#almacen.marcarEnviado(clave, `privado:${vinculacion.telegram_id}`, texto);
+    }
+  }
+
+  /**
+   * Anuncia en el grupo los fichajes y ventas que superen un importe.
+   *
+   * Sin el filtro por importe el grupo recibiría cada compra de tres
+   * millones, que no interesa a nadie.
+   */
+  async #anunciarFichajes(movimientos) {
+    const grupo = this.#config.obtener('telegram_grupo');
+    if (!grupo || !this.#config.activo('anunciar_fichajes') || this.#config.activo('silenciado')) return;
+    if (!this.#config.activo('publicar_grupo')) return;
+
+    const minimo = this.#config.numero('importe_minimo_fichaje');
+    const interesantes = movimientos.filter(
+      (m) => m.importe != null && m.importe >= minimo && [TIPOS.COMPRA_AL_MERCADO, TIPOS.COMPRA_A_MANAGER, TIPOS.VENTA].includes(m.tipo),
+    );
+    if (interesantes.length === 0) return;
+
+    // Solo se anuncia lo de las últimas horas. Al arrancar por primera vez
+    // hay cientos de movimientos viejos, y anunciarlos todos sería absurdo.
+    const limite = new Date(Date.now() - 6 * 3600000).toISOString();
+
+    for (const m of interesantes) {
+      if (m.fecha < limite) continue;
+      const clave = `fichaje:${m.id}`;
+      if (this.#almacen.yaEnviado(clave)) continue;
+
+      const manager = this.#almacen.managers().find((x) => x.manager_id === m.managerId);
+      const futbolista = this.#almacen.futbolista(m.futbolistaId);
+      if (!manager || !futbolista) continue;
+
+      const millones = (v) => `${(v / 1e6).toLocaleString('es-ES', { maximumFractionDigits: 1 })} M`;
+      const texto =
+        m.tipo === TIPOS.VENTA
+          ? `💸 <b>${manager.nombre}</b> ha vendido a <b>${futbolista.nombre}</b> por ${millones(m.importe)}.`
+          : `📝 <b>${manager.nombre}</b> ficha a <b>${futbolista.nombre}</b> por ${millones(m.importe)}.`;
+
+      const resultado = await this.#telegram.enviar(grupo, texto);
+      if (resultado.ok) this.#almacen.marcarEnviado(clave, 'grupo', texto);
+    }
+  }
+
+  /**
+   * Busca si alguien vendió hace poco al futbolista que acaba de hacer algo.
+   *
+   * Es el dato que convierte un gol en una historia: quién lo tenía, cuándo
+   * lo soltó y por cuánto.
+   */
+  #quienLoVendio(futbolistaId) {
+    const dias = this.#config.numero('dias_de_venta_reciente');
+    const desde = new Date(Date.now() - dias * 86400000).toISOString();
+
+    const anterior = this.#almacen.db
+      .prepare(`
+        SELECT p.equipo_id, p.hasta, m.nombre
+        FROM historial_propiedad p JOIN managers m ON m.equipo_id = p.equipo_id
+        WHERE p.futbolista_id = ? AND p.hasta IS NOT NULL AND p.hasta >= ?
+        ORDER BY p.hasta DESC LIMIT 1
+      `)
+      .get(String(futbolistaId), desde);
+    if (!anterior) return null;
+
+    // Quien lo tiene ahora, para no anunciar que lo vendió si sigue siendo suyo.
+    const actual = this.#almacen.db
+      .prepare('SELECT equipo_id FROM historial_propiedad WHERE futbolista_id = ? AND hasta IS NULL LIMIT 1')
+      .get(String(futbolistaId));
+    if (actual && actual.equipo_id === anterior.equipo_id) return null;
+
+    const venta = this.#almacen.db
+      .prepare(`
+        SELECT importe, fecha FROM actividad
+        WHERE futbolista_id = ? AND manager_id = (SELECT manager_id FROM managers WHERE equipo_id = ?)
+        ORDER BY fecha DESC LIMIT 1
+      `)
+      .get(String(futbolistaId), anterior.equipo_id);
+
+    return {
+      manager: anterior.nombre,
+      cuando: anterior.hasta,
+      diasDesde: Math.round((Date.now() - new Date(anterior.hasta).getTime()) / 86400000),
+      importe: venta?.importe ?? null,
+    };
   }
 
   async #sincronizarPlantillas(ligaId) {

@@ -1,7 +1,16 @@
 // Las estadísticas que Fantasy devuelve por futbolista y jornada.
 // Cada una llega como pareja [cantidad, puntos que aporta].
 // Los cinco primeros son los hechos que el bot avisa por privado.
-export const HECHOS = ['goals', 'goal_assist', 'penalty_save', 'penalty_won', 'penalty_failed'];
+export const HECHOS = [
+  'goals',
+  'goal_assist',
+  'penalty_save',
+  'penalty_won',
+  'penalty_failed',
+  'red_card',
+  'second_yellow_card',
+  'own_goals',
+];
 
 export const NOMBRE_HECHO = {
   goals: 'gol',
@@ -9,6 +18,9 @@ export const NOMBRE_HECHO = {
   penalty_save: 'penalti parado',
   penalty_won: 'penalti provocado',
   penalty_failed: 'penalti fallado',
+  red_card: 'roja',
+  second_yellow_card: 'doble amarilla',
+  own_goals: 'gol en propia',
 };
 
 const LINEAS = ['goalkeeper', 'defender', 'midfield', 'striker'];

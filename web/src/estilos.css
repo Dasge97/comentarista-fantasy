@@ -269,6 +269,8 @@ button.elegido { border-color: var(--acento); color: var(--acento); background: 
 .etiqueta.ojo { background: var(--aviso-suave); color: var(--aviso); border-color: transparent; }
 
 .suave { color: var(--texto-suave); }
+.sube { color: var(--bien); font-variant-numeric: tabular-nums; }
+.baja { color: var(--mal); font-variant-numeric: tabular-nums; }
 .nota { color: var(--texto-suave); font-size: 13px; }
 
 /* ---------- Entrada ---------- */

@@ -71,8 +71,18 @@ export const AJUSTES = {
   plantilla_penalty_save: { defecto: '🧤 <b>{jugador}</b> ha parado un penalti. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de penalti parado' },
   plantilla_penalty_won: { defecto: '🎯 <b>{jugador}</b> ha provocado un penalti. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de penalti provocado' },
   plantilla_penalty_failed: { defecto: '❌ <b>{jugador}</b> ha fallado un penalti. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de penalti fallado' },
+  plantilla_red_card: { defecto: '🟥 <b>{jugador}</b> ha visto la roja. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de roja' },
+  plantilla_second_yellow_card: { defecto: '🟥 <b>{jugador}</b> se va por doble amarilla. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de doble amarilla' },
+  plantilla_own_goals: { defecto: '🙈 <b>{jugador}</b> ha marcado en propia puerta. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de gol en propia' },
   plantilla_correccion: { defecto: '↩️ Corrección: a <b>{jugador}</b> le han quitado {que}. Lo tienes en tu once.', secreto: false, titulo: 'Aviso de corrección' },
   plantilla_cola_puntos: { defecto: 'Va por {puntos} puntos en esta jornada. Provisional.', secreto: false, titulo: 'Coleta con los puntos del futbolista' },
+
+  // Avisos que no dependen de un partido en juego.
+  avisar_lesionados: { defecto: '1', secreto: false, titulo: 'Avisar de lesionados y sancionados antes del cierre' },
+  horas_antes_del_cierre: { defecto: '6', secreto: false, titulo: 'Horas de antelación del aviso de lesionados' },
+  anunciar_fichajes: { defecto: '1', secreto: false, titulo: 'Anunciar fichajes y ventas en el grupo' },
+  importe_minimo_fichaje: { defecto: '5000000', secreto: false, titulo: 'Importe mínimo para anunciar un fichaje' },
+  dias_de_venta_reciente: { defecto: '30', secreto: false, titulo: 'Días para considerar reciente una venta' },
 
   // Mercado.
   presupuesto_inicial: { defecto: '', secreto: false, titulo: 'Presupuesto con el que empieza cada manager' },

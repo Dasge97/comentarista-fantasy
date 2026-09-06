@@ -13,7 +13,6 @@ import {
   useDatos,
   usarPestana,
 } from '../componentes/comunes.jsx';
-import GraficoLinea from '../componentes/GraficoLinea.jsx';
 
 export function Clasificacion() {
   const { datos, error, cargando } = useDatos(() => api.clasificacion());
@@ -300,99 +299,6 @@ export function Movimientos() {
           />
         </Tarjeta>
       )}
-    </>
-  );
-}
-
-export function Precios() {
-  const [texto, setTexto] = useState('');
-  const [busqueda, setBusqueda] = useState('');
-  const [elegido, setElegido] = useState(null);
-
-  const { datos: resultados, cargando: buscando } = useDatos(
-    () => (busqueda.length >= 2 ? api.buscarFutbolistas(busqueda) : Promise.resolve([])),
-    [busqueda],
-  );
-  const { datos: ficha } = useDatos(() => (elegido ? api.valorDe(elegido.id) : Promise.resolve(null)), [elegido?.id]);
-
-  const puntos = (ficha?.serie || []).map((f) => ({ fecha: f.fecha, valor: f.valor }));
-
-  return (
-    <>
-      <Cabecera titulo="Precios">Evolución del valor de mercado de un futbolista.</Cabecera>
-
-      <Columnas>
-        <Tarjeta titulo="Buscar futbolista">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setBusqueda(texto.trim());
-            }}
-          >
-            <Campo etiqueta="Nombre" pista="Con dos letras basta.">
-              <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Bartra" />
-            </Campo>
-            <button className="accion" type="submit" disabled={texto.trim().length < 2}>
-              Buscar
-            </button>
-          </form>
-
-          {buscando ? <Cargando que="la búsqueda" /> : null}
-
-          {resultados && resultados.length > 0 ? (
-            <div style={{ marginTop: 14 }}>
-              <Tabla
-                filas={resultados}
-                columnas={[
-                  { titulo: 'Futbolista', valor: (f) => f.nombre },
-                  { titulo: 'Lo tiene', valor: (f) => f.propietario || <span className="suave">nadie</span> },
-                  { titulo: 'Valor', valor: (f) => millones(f.valor), numerica: true },
-                  {
-                    titulo: '',
-                    valor: (f) => (
-                      <button
-                        type="button"
-                        className={`accion suave ${elegido?.id === f.id ? 'elegido' : ''}`}
-                        onClick={() => setElegido(f)}
-                      >
-                        Ver
-                      </button>
-                    ),
-                  },
-                ]}
-              />
-            </div>
-          ) : null}
-
-          {busqueda.length >= 2 && resultados && resultados.length === 0 && !buscando ? (
-            <p className="suave">Ningún futbolista se llama así.</p>
-          ) : null}
-        </Tarjeta>
-
-        {elegido ? (
-          <Tarjeta titulo={`Valor de ${elegido.nombre}`}>
-            {ficha && ficha.diasGuardados < 2 ? (
-              <Aviso tipo="ojo">
-                Todavía no hay evolución que dibujar. El bot guarda una cifra al día y solo lleva{' '}
-                {ficha.diasGuardados === 1 ? 'un día' : `${ficha.diasGuardados} días`} funcionando. Mañana ya habrá una
-                línea. Fantasy no da el histórico anterior, así que la serie empieza el día que arrancó el bot.
-              </Aviso>
-            ) : (
-              <GraficoLinea puntos={puntos} titulo={`Valor de mercado de ${elegido.nombre}`} formatear={millones} />
-            )}
-            <p className="nota" style={{ marginBottom: 0 }}>
-              Valor de hoy: {millones(elegido.valor)}.{' '}
-              {elegido.propietario ? `Lo tiene ${elegido.propietario}.` : 'No lo tiene nadie.'}
-            </p>
-          </Tarjeta>
-        ) : (
-          <Tarjeta titulo="Sin futbolista elegido">
-            <p className="nota" style={{ margin: 0 }}>
-              Busca uno por su nombre y pulsa «Ver». Aquí saldrá cómo ha cambiado su precio desde que arrancó el bot.
-            </p>
-          </Tarjeta>
-        )}
-      </Columnas>
     </>
   );
 }

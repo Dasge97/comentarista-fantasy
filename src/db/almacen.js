@@ -302,6 +302,98 @@ export class Almacen {
       .all();
   }
 
+  /**
+   * Lista de futbolistas con filtros, como la de la aplicación oficial.
+   *
+   * Añade dos cosas que la oficial no tiene: quién de la liga lo tiene, y
+   * cuánto ha subido o bajado de precio en los últimos días.
+   */
+  listarFutbolistas({ nombre, posicion, equipo, estado, propietario, orden = 'valor', sentido = 'desc', dias = 7, limite = 100, salto = 0 } = {}) {
+    const ordenes = {
+      valor: 'valor',
+      puntos: 'f.puntos_temporada',
+      media: 'f.media',
+      nombre: 'f.nombre',
+      cambio: 'cambio',
+      cambio_porcentaje: 'cambio_porcentaje',
+    };
+    const columna = ordenes[orden] || 'valor';
+    const direccion = sentido === 'asc' ? 'ASC' : 'DESC';
+
+    const condiciones = [];
+    const valores = [];
+    if (nombre) {
+      condiciones.push('f.nombre LIKE ? COLLATE NOCASE');
+      valores.push(`%${nombre}%`);
+    }
+    if (posicion) {
+      condiciones.push('f.posicion_id = ?');
+      valores.push(Number(posicion));
+    }
+    if (equipo) {
+      condiciones.push('f.equipo_real_id = ?');
+      valores.push(String(equipo));
+    }
+    if (estado) {
+      condiciones.push('f.estado = ?');
+      valores.push(String(estado));
+    }
+    if (propietario === 'libre') condiciones.push('propietario IS NULL');
+    else if (propietario === 'ocupado') condiciones.push('propietario IS NOT NULL');
+    else if (propietario) {
+      condiciones.push('propietario_equipo = ?');
+      valores.push(String(propietario));
+    }
+
+    // La subida o bajada se mide contra el valor de hace `dias` días. Si el
+    // futbolista no tiene dato de ese día, se coge el más antiguo que haya.
+    const consulta = `
+      WITH base AS (
+        SELECT
+          f.id, f.nombre, f.posicion_id, f.equipo_real_id, f.estado,
+          f.puntos_temporada, f.media,
+          eq.nombre AS equipo_nombre,
+          (SELECT v.valor FROM valor_futbolista v WHERE v.futbolista_id = f.id ORDER BY v.fecha DESC LIMIT 1) AS valor,
+          (SELECT v.valor FROM valor_futbolista v WHERE v.futbolista_id = f.id AND v.fecha <= date('now', ?) ORDER BY v.fecha DESC LIMIT 1) AS valor_antes,
+          (SELECT COUNT(*) FROM valor_futbolista v WHERE v.futbolista_id = f.id) AS dias_guardados,
+          (SELECT mg.nombre FROM historial_propiedad p JOIN managers mg ON mg.equipo_id = p.equipo_id
+             WHERE p.futbolista_id = f.id AND p.hasta IS NULL LIMIT 1) AS propietario,
+          (SELECT p.equipo_id FROM historial_propiedad p
+             WHERE p.futbolista_id = f.id AND p.hasta IS NULL LIMIT 1) AS propietario_equipo
+        FROM futbolistas f
+        LEFT JOIN equipos eq ON eq.id = f.equipo_real_id
+      ),
+      conCambio AS (
+        SELECT *,
+          CASE WHEN valor_antes IS NULL THEN NULL ELSE valor - valor_antes END AS cambio,
+          CASE WHEN valor_antes IS NULL OR valor_antes = 0 THEN NULL
+               ELSE ROUND((valor - valor_antes) * 100.0 / valor_antes, 2) END AS cambio_porcentaje
+        FROM base
+      )
+      SELECT * FROM conCambio f
+      ${condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''}
+      ORDER BY ${columna} IS NULL, ${columna} ${direccion}
+      LIMIT ? OFFSET ?
+    `;
+
+    const filas = this.#db.prepare(consulta).all(`-${Number(dias)} days`, ...valores, limite, salto);
+
+    const total = this.#db
+      .prepare(`
+        WITH base AS (
+          SELECT f.id, f.nombre, f.posicion_id, f.equipo_real_id, f.estado,
+            (SELECT p.equipo_id FROM historial_propiedad p WHERE p.futbolista_id = f.id AND p.hasta IS NULL LIMIT 1) AS propietario_equipo,
+            (SELECT mg.nombre FROM historial_propiedad p JOIN managers mg ON mg.equipo_id = p.equipo_id
+               WHERE p.futbolista_id = f.id AND p.hasta IS NULL LIMIT 1) AS propietario
+          FROM futbolistas f
+        )
+        SELECT COUNT(*) AS n FROM base f ${condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''}
+      `)
+      .get(...valores).n;
+
+    return { filas, total };
+  }
+
   /** Busca futbolistas por nombre, para los buscadores de la web. */
   buscarFutbolistas(texto, limite = 25) {
     return this.#db
@@ -327,20 +419,35 @@ export class Almacen {
 
   guardarFutbolistas(futbolistas) {
     const sql = this.#db.prepare(`
-      INSERT INTO futbolistas (id, nombre, posicion_id, equipo_real_id, estado, actualizado_en)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO futbolistas (id, nombre, posicion_id, equipo_real_id, estado, puntos_temporada, media, valor_actual, actualizado_en)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         nombre = excluded.nombre,
         posicion_id = excluded.posicion_id,
         equipo_real_id = excluded.equipo_real_id,
         estado = excluded.estado,
+        puntos_temporada = excluded.puntos_temporada,
+        media = excluded.media,
+        valor_actual = excluded.valor_actual,
         actualizado_en = excluded.actualizado_en
     `);
     enTransaccion(this.#db, () => {
       for (const f of futbolistas) {
-        sql.run(f.id, f.nombre, f.posicionId, f.equipoRealId, f.estado, ahora());
+        sql.run(f.id, f.nombre, f.posicionId, f.equipoRealId, f.estado, f.puntos ?? null, f.media ?? null, f.valor ?? null, ahora());
       }
     });
+  }
+
+  /** Futbolistas que un manager tiene ahora mismo y no están en condiciones de jugar. */
+  futbolistasConProblema(equipoId, estados = ['injured', 'suspended', 'doubtful']) {
+    const huecos = estados.map(() => '?').join(', ');
+    return this.#db
+      .prepare(`
+        SELECT f.id, f.nombre, f.estado, f.posicion_id
+        FROM historial_propiedad p JOIN futbolistas f ON f.id = p.futbolista_id
+        WHERE p.equipo_id = ? AND p.hasta IS NULL AND f.estado IN (${huecos})
+      `)
+      .all(String(equipoId), ...estados);
   }
 
   /**
@@ -361,14 +468,66 @@ export class Almacen {
     return futbolistas.length;
   }
 
+  /**
+   * Guarda la serie completa de valor de un futbolista.
+   *
+   * Fantasy devuelve todos los días de la temporada de una vez, así que no
+   * hay que acumularla poco a poco.
+   */
+  guardarHistoricoDeValor(futbolistaId, entradas) {
+    const sql = this.#db.prepare(`
+      INSERT INTO valor_futbolista (fecha, futbolista_id, valor, pujas)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(fecha, futbolista_id) DO UPDATE SET
+        valor = excluded.valor,
+        pujas = COALESCE(excluded.pujas, valor_futbolista.pujas)
+    `);
+    enTransaccion(this.#db, () => {
+      for (const e of entradas) sql.run(e.fecha, String(futbolistaId), e.valor, e.pujas ?? null);
+    });
+    return entradas.length;
+  }
+
+  /** Futbolistas cuya serie de precios todavía no se ha traído entera. */
+  futbolistasSinHistorico(minimoDeDias = 5, limite = 200) {
+    return this.#db
+      .prepare(`
+        SELECT f.id FROM futbolistas f
+        WHERE (SELECT COUNT(*) FROM valor_futbolista v WHERE v.futbolista_id = f.id) < ?
+        LIMIT ?
+      `)
+      .all(minimoDeDias, limite)
+      .map((f) => f.id);
+  }
+
   hayValoresDe(fecha) {
     return Boolean(this.#db.prepare('SELECT 1 FROM valor_futbolista WHERE fecha = ? LIMIT 1').get(fecha));
   }
 
   serieDeValor(futbolistaId) {
     return this.#db
-      .prepare('SELECT fecha, valor, puntos, media FROM valor_futbolista WHERE futbolista_id = ? ORDER BY fecha')
+      .prepare('SELECT fecha, valor, pujas, puntos, media FROM valor_futbolista WHERE futbolista_id = ? ORDER BY fecha')
       .all(String(futbolistaId));
+  }
+
+  // ---------- Equipos reales ----------
+
+  guardarEquipos(equipos) {
+    const sql = this.#db.prepare(`
+      INSERT INTO equipos (id, nombre, escudo, actualizado_en) VALUES (?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET nombre = excluded.nombre, escudo = excluded.escudo, actualizado_en = excluded.actualizado_en
+    `);
+    enTransaccion(this.#db, () => {
+      for (const e of equipos) sql.run(e.id, e.nombre, e.escudo, ahora());
+    });
+  }
+
+  equipos() {
+    return this.#db.prepare('SELECT * FROM equipos ORDER BY nombre').all();
+  }
+
+  hayEquipos() {
+    return Boolean(this.#db.prepare('SELECT 1 FROM equipos LIMIT 1').get());
   }
 
   // ---------- Partidos ----------

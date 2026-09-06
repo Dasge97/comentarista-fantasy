@@ -63,7 +63,12 @@ export const api = {
   mercado: () => peticion('/liga/mercado'),
   movimientos: () => peticion('/liga/movimientos'),
   valorDe: (futbolistaId) => peticion(`/liga/futbolista/${futbolistaId}/valor`),
-  buscarFutbolistas: (texto) => peticion(`/liga/futbolistas?buscar=${encodeURIComponent(texto)}`),
+  buscarFutbolistas: (texto) => peticion(`/liga/futbolistas?nombre=${encodeURIComponent(texto)}&limite=25`),
+  futbolistas: (filtros) => peticion(`/liga/futbolistas?${new URLSearchParams(
+    Object.entries(filtros).filter(([, v]) => v !== '' && v != null),
+  )}`),
+  futbolista: (id) => peticion(`/liga/futbolista/${id}`),
+  equipos: () => peticion('/liga/equipos'),
 };
 
 /** Formatea una cifra de dinero en millones, que es como se habla en Fantasy. */

@@ -191,6 +191,45 @@ export class LectorFantasy {
     }));
   }
 
+  /**
+   * Valor de mercado de un futbolista, día a día desde el arranque de la
+   * temporada.
+   *
+   * Encontrada el 6 de septiembre de 2026. Devuelve una entrada por día con
+   * la fecha, el valor y cuántas pujas tuvo. No hace falta acumular la serie
+   * poco a poco: viene entera.
+   */
+  async historicoDeValor(futbolistaId) {
+    const datos = await this.#cliente.get(`${this.#cmp}/player/${futbolistaId}/market-value?x-lang=es`);
+    return (datos || []).map((d) => ({
+      fecha: String(d.date).slice(0, 10),
+      valor: d.marketValue != null ? Number(d.marketValue) : null,
+      pujas: d.bids != null ? Number(d.bids) : null,
+    }));
+  }
+
+  /**
+   * Equipos reales de la competición, con su nombre y su escudo.
+   *
+   * Se sacan de las estadísticas por jornada, que es la única consulta que
+   * los trae. Sin esto los partidos solo tienen números.
+   */
+  async equipos(jornada) {
+    const datos = await this.#cliente.get(`/stats/v1/competition/1/stats/week/${jornada}?x-lang=es`);
+    const equipos = new Map();
+    for (const partido of datos || []) {
+      for (const lado of [partido.local, partido.visitor]) {
+        if (!lado?.id) continue;
+        equipos.set(String(lado.id), {
+          id: String(lado.id),
+          nombre: lado.mainName,
+          escudo: lado.badgeColor || null,
+        });
+      }
+    }
+    return [...equipos.values()];
+  }
+
   /** Dinero de la cuenta propia. Para un rival responde HTTP 403. */
   async dineroPropio(equipoId) {
     const datos = await this.#cliente.get(`${this.#cmp}/teams/${equipoId}/money?x-lang=es`);

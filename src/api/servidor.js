@@ -330,22 +330,66 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     );
   });
 
+  // Lista de futbolistas con los mismos filtros que la aplicación oficial,
+  // más dos que ella no tiene: quién de la liga lo tiene y cuánto ha subido.
   app.get('/api/liga/futbolistas', identificado, (req, res) => {
-    const buscar = String(req.query.buscar || '').trim();
-    if (buscar.length < 2) return res.json([]);
-    res.json(almacen.buscarFutbolistas(buscar));
+    const q = req.query;
+    res.json(
+      almacen.listarFutbolistas({
+        nombre: q.nombre,
+        posicion: q.posicion,
+        equipo: q.equipo,
+        estado: q.estado,
+        propietario: q.propietario,
+        orden: q.orden,
+        sentido: q.sentido,
+        dias: Math.min(Math.max(Number(q.dias) || 7, 1), 365),
+        limite: Math.min(Number(q.limite) || 50, 200),
+        salto: Math.max(Number(q.salto) || 0, 0),
+      }),
+    );
   });
 
-  app.get('/api/liga/futbolista/:id/valor', identificado, (req, res) => {
+  app.get('/api/liga/equipos', identificado, (_req, res) => {
+    res.json(almacen.equipos());
+  });
+
+  app.get('/api/liga/futbolista/:id', identificado, (req, res) => {
     const futbolista = almacen.futbolista(req.params.id);
+    if (!futbolista) return res.status(404).json({ error: 'No conozco ese futbolista.' });
+
     const serie = almacen.serieDeValor(req.params.id);
-    res.json({
-      futbolista,
-      serie,
-      // La serie empieza el día que arrancó el bot: los valores anteriores
-      // no están en ninguna parte a la que podamos llegar.
-      diasGuardados: serie.length,
-    });
+    const jornadas = almacen.db
+      .prepare(`
+        SELECT e.jornada, e.puntos, e.estadisticas, m.nombre AS manager
+        FROM estado_jugador e LEFT JOIN managers m ON m.equipo_id = e.equipo_id
+        WHERE e.futbolista_id = ? ORDER BY e.jornada
+      `)
+      .all(String(req.params.id));
+
+    const propietarios = almacen.db
+      .prepare(`
+        SELECT p.desde, p.hasta, m.nombre
+        FROM historial_propiedad p LEFT JOIN managers m ON m.equipo_id = p.equipo_id
+        WHERE p.futbolista_id = ? ORDER BY p.desde DESC
+      `)
+      .all(String(req.params.id));
+
+    const movimientos = almacen.db
+      .prepare(`
+        SELECT a.tipo, a.importe, a.fecha, m.nombre AS manager
+        FROM actividad a LEFT JOIN managers m ON m.manager_id = a.manager_id
+        WHERE a.futbolista_id = ? ORDER BY a.fecha DESC
+      `)
+      .all(String(req.params.id));
+
+    res.json({ futbolista, serie, jornadas, propietarios, movimientos, diasGuardados: serie.length });
+  });
+
+  // Se mantiene por compatibilidad con la página de precios anterior.
+  app.get('/api/liga/futbolista/:id/valor', identificado, (req, res) => {
+    const serie = almacen.serieDeValor(req.params.id);
+    res.json({ futbolista: almacen.futbolista(req.params.id), serie, diasGuardados: serie.length });
   });
 
   // ---------- Web ----------

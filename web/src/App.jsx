@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import Entrar from './paginas/Entrar.jsx';
-import { Clasificacion, Dinero, Manager, Mercado, Movimientos, Precios } from './paginas/liga.jsx';
+import { Clasificacion, Dinero, Manager, Mercado, Movimientos } from './paginas/liga.jsx';
+import { Futbolistas } from './paginas/futbolistas.jsx';
 import { BaseDeDatos, Ajustes, Estado, Notificar, UsuariosAdmin } from './paginas/admin.jsx';
 import { TelegramAdmin } from './paginas/telegram.jsx';
 
@@ -11,7 +12,7 @@ const PAGINAS = [
   { id: 'dinero', titulo: 'Dinero', grupo: 'La liga', componente: Dinero },
   { id: 'mercado', titulo: 'Mercado', grupo: 'La liga', componente: Mercado },
   { id: 'movimientos', titulo: 'Movimientos', grupo: 'La liga', componente: Movimientos },
-  { id: 'precios', titulo: 'Precios', grupo: 'La liga', componente: Precios },
+  { id: 'futbolistas', titulo: 'Futbolistas', grupo: 'La liga', componente: Futbolistas },
   { id: 'estado', titulo: 'Estado', grupo: 'Administración', componente: Estado, soloAdmin: true },
   { id: 'ajustes', titulo: 'Configuración', grupo: 'Administración', componente: Ajustes, soloAdmin: true },
   { id: 'telegram', titulo: 'Telegram', grupo: 'Administración', componente: TelegramAdmin, soloAdmin: true },
