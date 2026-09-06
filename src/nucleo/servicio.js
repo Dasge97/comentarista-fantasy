@@ -109,7 +109,8 @@ export class Servicio {
         }
       } catch (error) {
         this.#anotar('error', `Ciclo fallido: ${error.message}`);
-        espera = 60000;
+        // Con un partido en marcha no se puede esperar un minuto entero.
+        espera = this.#hayPrisa() ? 15000 : 60000;
       }
       this.estado.proximoCiclo = new Date(Date.now() + espera).toISOString();
       await new Promise((r) => setTimeout(r, espera));
@@ -128,7 +129,9 @@ export class Servicio {
       await this.#resumenesDePartidosTerminados(jornada.numero, partidos);
     }
 
-    if (Date.now() - this.#ultimoCicloLento > 10 * 60000) {
+    // El ciclo lento son unas quince peticiones. Durante un partido estorba,
+    // así que se pospone: lo que importa entonces es la puntuación.
+    if (Date.now() - this.#ultimoCicloLento > 10 * 60000 && !this.#hayPrisa()) {
       this.#ultimoCicloLento = Date.now();
       await this.#cicloLento();
     }
@@ -593,17 +596,29 @@ export class Servicio {
     while (this.#vivo) {
       let espera = 3600000;
       try {
-        if (this.configurado) {
-          const traidos = await this.#traerPreciosHistoricos(60);
-          // Mientras queden pendientes se sigue enseguida.
-          if (traidos > 0) espera = 5000;
+        // Con un partido en marcha manda la lectura de puntos. El relleno de
+        // precios espera. El 6 de septiembre de 2026 este bucle ahogó a
+        // Fantasy justo al empezar un partido: cuatro lecturas seguidas
+        // fallaron y una asistencia se avisó una hora tarde.
+        if (this.configurado && !this.#hayPrisa()) {
+          const traidos = await this.#traerPreciosHistoricos(20);
+          if (traidos > 0) espera = 15000;
+        } else {
+          espera = 60000;
         }
       } catch (error) {
         this.#anotar('aviso', `Fallo al traer precios históricos: ${error.message}`);
-        espera = 60000;
+        espera = 120000;
       }
       await new Promise((r) => setTimeout(r, espera));
     }
+  }
+
+  /** Si hay partido en marcha, las tareas de fondo se apartan. */
+  #hayPrisa() {
+    return ['partido en juego', 'a punto de empezar', 'ajustando puntos tras el partido'].includes(
+      this.estado.ritmo,
+    );
   }
 
   /** Una tanda del relleno de precios. Devuelve cuántos ha traído. */

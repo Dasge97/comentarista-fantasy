@@ -29,7 +29,7 @@ export class ClienteFantasy {
   #sesion;
   #tiempoLimite;
 
-  constructor({ sesion, tiempoLimiteMs = 15000 }) {
+  constructor({ sesion, tiempoLimiteMs = 25000 }) {
     this.#sesion = sesion;
     this.#tiempoLimite = tiempoLimiteMs;
   }
@@ -66,11 +66,11 @@ export class ClienteFantasy {
    * alineación de un manager que no jugó esa jornada.
    */
   async get(ruta) {
-    let resultado = await this.#peticion(ruta, await this.#sesion.token());
+    let resultado = await this.#intentar(ruta);
 
     if (resultado.estado === 401) {
       this.#sesion.invalidar();
-      resultado = await this.#peticion(ruta, await this.#sesion.token());
+      resultado = await this.#intentar(ruta);
     }
 
     if (resultado.estado === 204) return null;
@@ -84,5 +84,32 @@ export class ClienteFantasy {
     }
 
     return resultado.datos;
+  }
+
+  /**
+   * Un intento con reintentos cortos.
+   *
+   * Fantasy corta peticiones y devuelve 502 cuando se le pide mucho seguido.
+   * Sin reintentar, una lectura durante un partido se perdía entera y el
+   * aviso llegaba con el siguiente ciclo. Ocurrió el 6 de septiembre de 2026:
+   * cuatro ciclos seguidos fallaron y una asistencia se avisó una hora tarde.
+   */
+  async #intentar(ruta, intentos = 3) {
+    let ultimo = null;
+    for (let i = 0; i < intentos; i += 1) {
+      try {
+        const bearer = await this.#sesion.token();
+        const resultado = await this.#peticion(ruta, bearer);
+        // Un fallo del servidor merece otro intento; un 4xx no, porque
+        // volvería a responder lo mismo.
+        if (resultado.estado < 500) return resultado;
+        ultimo = resultado;
+      } catch (error) {
+        ultimo = { estado: 0, datos: null, error };
+      }
+      await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+    }
+    if (ultimo?.error) throw ultimo.error;
+    return ultimo;
   }
 }
