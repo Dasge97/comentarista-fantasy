@@ -435,42 +435,22 @@ function PestanaSeguridad({ alTerminar }) {
 }
 
 /**
- * Login de Fantasy en la página de LaLiga.
+ * Sesión de Fantasy.
  *
- * LaLiga quitó el 15 de octubre de 2026 el login con correo y contraseña.
- * Ahora hay que entrar en su página; al terminar, la página intenta volver
- * a la app con una dirección authredirect://... que el navegador no sabe
- * abrir y deja escrita en la consola. Esa dirección se pega aquí.
+ * El bot entra solo en la página de login de LaLiga con el correo y la
+ * contraseña de Configuración, pestaña Fantasy, y después renueva la sesión
+ * sin contraseña. Este botón fuerza un login ahora, por ejemplo después de
+ * cambiar la contraseña.
  */
 function LoginFantasy({ sesion, alTerminar }) {
-  const [abierta, setAbierta] = useState(false);
-  const [respuesta, setRespuesta] = useState('');
   const [mensaje, setMensaje] = useState(null);
   const [ocupado, setOcupado] = useState(false);
 
-  async function abrir() {
-    setMensaje(null);
-    // La pestaña se abre antes de la petición: si se abre después, el
-    // navegador la trata como ventana emergente y la bloquea.
-    const pestana = window.open('about:blank', '_blank');
-    try {
-      const r = await api.prepararLoginFantasy();
-      if (pestana) pestana.location.href = r.url;
-      else window.location.href = r.url;
-      setAbierta(true);
-    } catch (e) {
-      pestana?.close();
-      setMensaje({ tipo: 'error', texto: e.message });
-    }
-  }
-
-  async function guardar() {
+  async function entrar() {
     setOcupado(true);
     setMensaje(null);
     try {
-      await api.completarLoginFantasy(respuesta);
-      setRespuesta('');
-      setAbierta(false);
+      await api.entrarEnFantasy();
       setMensaje({ tipo: 'bien', texto: 'Sesión iniciada. El bot vuelve a leer Fantasy en el próximo ciclo.' });
       alTerminar();
     } catch (e) {
@@ -482,51 +462,18 @@ function LoginFantasy({ sesion, alTerminar }) {
 
   return (
     <Tarjeta
-      titulo="Iniciar sesión en Fantasy"
-      explica={
-        sesion?.necesitaLogin
-          ? 'El bot no tiene sesión en Fantasy y no puede leer nada. Hay que entrar una vez en la página de LaLiga con la cuenta del bot. Después la sesión se renueva sola.'
-          : 'La sesión se renueva sola. Solo hace falta repetir esto si el bot avisa de que no puede leer Fantasy.'
-      }
+      titulo="Sesión de Fantasy"
+      explica="El bot entra solo con el correo y la contraseña de Configuración, pestaña Fantasy, y después renueva la sesión sin contraseña. Si cambias la contraseña de la cuenta del bot, cámbiala también allí y pulsa este botón."
     >
-      <ol className="nota" style={{ paddingLeft: 18, marginTop: 0 }}>
-        <li>Pulsa «Abrir la página de LaLiga». Se abre en una pestaña nueva.</li>
-        <li>
-          En esa pestaña, <b>antes de entrar</b>, pulsa F12 y elige la pestaña <b>Consola</b> (Console).
-        </li>
-        <li>Entra con el correo y la contraseña de la cuenta del bot.</li>
-        <li>
-          Al terminar, la página se queda quieta y en la consola sale un error en rojo:{' '}
-          <code>Failed to launch 'authredirect://com.lfp.laligafantasy?…'</code>. Copia la dirección que va entre
-          comillas, desde <code>authredirect://</code> hasta el final. También vale copiar la línea entera.
-        </li>
-        <li>Pégala aquí abajo y pulsa «Guardar sesión». Tienes 20 minutos desde que abres la página.</li>
-      </ol>
-      <p className="nota">
-        Si en la consola no sale nada: en las herramientas de desarrollador, abre la pestaña Red (Network), marca
-        «Conservar registro» (Preserve log), entra otra vez y busca «authredirect».
-      </p>
-
-      <button className="accion" type="button" onClick={abrir} disabled={ocupado}>
-        Abrir la página de LaLiga
-      </button>
-
-      {abierta ? (
-        <div style={{ marginTop: 12 }}>
-          <Campo etiqueta="Dirección authredirect://…">
-            <textarea
-              value={respuesta}
-              onChange={(e) => setRespuesta(e.target.value)}
-              placeholder="authredirect://com.lfp.laligafantasy?state=…&code=…"
-              rows={3}
-            />
-          </Campo>
-          <button className="accion" type="button" onClick={guardar} disabled={ocupado || !respuesta.trim()}>
-            {ocupado ? 'Guardando…' : 'Guardar sesión'}
-          </button>
-        </div>
+      {sesion?.ultimoFallo ? (
+        <Aviso>
+          Último fallo al entrar ({fechaCorta(sesion.ultimoFallo.cuando)}): {sesion.ultimoFallo.mensaje}
+        </Aviso>
       ) : null}
-
+      {sesion?.ultimoLogin ? <p className="nota">Último login con contraseña: {fechaCorta(sesion.ultimoLogin)}.</p> : null}
+      <button className="accion" type="button" onClick={entrar} disabled={ocupado}>
+        {ocupado ? 'Entrando…' : 'Entrar en Fantasy ahora'}
+      </button>
       {mensaje ? <Aviso tipo={mensaje.tipo === 'bien' ? 'bien' : 'error'}>{mensaje.texto}</Aviso> : null}
     </Tarjeta>
   );
@@ -575,11 +522,11 @@ export function Estado() {
         />
         <Dato
           titulo="Sesión de Fantasy"
-          valor={datos.sesionFantasy.necesitaLogin ? 'Hay que entrar' : datos.sesionFantasy.activa ? 'Viva' : 'Caducada'}
-          tono={datos.sesionFantasy.necesitaLogin ? 'mal' : datos.sesionFantasy.activa ? 'bien' : undefined}
+          valor={datos.sesionFantasy.activa ? 'Viva' : datos.sesionFantasy.ultimoFallo ? 'Sin sesión' : 'Caducada'}
+          tono={datos.sesionFantasy.activa ? 'bien' : datos.sesionFantasy.ultimoFallo ? 'mal' : undefined}
           detalle={
-            datos.sesionFantasy.necesitaLogin
-              ? 'Usa «Iniciar sesión en Fantasy», más abajo.'
+            datos.sesionFantasy.ultimoFallo
+              ? 'Mira «Sesión de Fantasy», más abajo.'
               : datos.sesionFantasy.activa
                 ? `Le quedan ${datos.sesionFantasy.minutosRestantes} minutos.`
                 : 'Se renovará sola en la próxima lectura.'

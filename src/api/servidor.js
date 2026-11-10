@@ -157,15 +157,11 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     res.json({ ok: true });
   });
 
-  // ---------- Login de Fantasy (página de LaLiga) ----------
+  // ---------- Login de Fantasy ----------
 
-  app.post('/api/fantasy/login', identificado, soloAdministrador, (_req, res) => {
-    res.json(servicio.prepararLoginFantasy());
-  });
-
-  app.post('/api/fantasy/login/completar', identificado, soloAdministrador, async (req, res) => {
+  app.post('/api/fantasy/login', identificado, soloAdministrador, async (_req, res) => {
     try {
-      res.json(await servicio.completarLoginFantasy(req.body?.respuesta));
+      res.json(await servicio.entrarEnFantasy());
     } catch (error) {
       res.status(400).json({ error: error.message });
     }

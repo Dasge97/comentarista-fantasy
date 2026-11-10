@@ -53,10 +53,17 @@ export class Servicio {
 
   /** Aplica los cambios de configuración hechos desde la web. */
   refrescarConfiguracion() {
-    // El lector no depende de la configuración: la sesión se inicia desde el
-    // panel. Se crea una sola vez, porque guarda en memoria el login que
-    // está a medias entre "abrir la página de LaLiga" y "pegar la dirección".
-    if (!this.#lector) this.#lector = new LectorFantasy({ ficheroSesion: this.#ficheroSesion });
+    // El lector se crea una sola vez. Lee el correo y la contraseña del panel
+    // en cada login, así que un cambio de contraseña se usa sin rehacerlo.
+    if (!this.#lector) {
+      this.#lector = new LectorFantasy({
+        ficheroSesion: this.#ficheroSesion,
+        credenciales: () => ({
+          email: this.#config.obtener('fantasy_email'),
+          password: this.#config.obtener('fantasy_password'),
+        }),
+      });
+    }
     this.#telegram.cambiarToken(this.#config.obtener('telegram_token'));
     this.#redactor.configurar({
       proveedor: this.#config.obtener('proveedor_modelo'),
@@ -82,20 +89,15 @@ export class Servicio {
     const admin = this.#usuarios.administrador();
     if (!admin?.telegram_id || !this.#telegram.configurado) return;
     const panel = this.#config.obtener('url_publica');
-    const enlace = panel ? `\n\nEntra en ${panel}/#estado y pulsa «Abrir la página de LaLiga».` : '';
+    const enlace = panel ? `\n\nPanel: ${panel}/#estado` : '';
     const escapar = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const r = await this.#telegram.enviar(admin.telegram_id, `⚠️ <b>El bot no puede leer Fantasy.</b>\n${escapar(texto)}${enlace}`);
     if (!r.ok) this.#anotar('aviso', `No se pudo avisar al administrador por Telegram: ${r.motivo}`);
   }
 
-  /** Primer paso del login de Fantasy: la dirección de la página de LaLiga. */
-  prepararLoginFantasy() {
-    return this.#lector.sesion.prepararLogin();
-  }
-
-  /** Segundo paso: la dirección authredirect://... que dejó la página de LaLiga. */
-  async completarLoginFantasy(texto) {
-    const estado = await this.#lector.sesion.completarLogin(texto);
+  /** Entra en Fantasy ahora, con el correo y la contraseña del panel. Para el botón del panel. */
+  async entrarEnFantasy() {
+    const estado = await this.#lector.sesion.iniciarSesion();
     this.#sinSesionAvisado = false;
     this.#anotar('info', 'Sesión de Fantasy iniciada desde el panel.');
     return estado;
