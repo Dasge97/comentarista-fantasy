@@ -23,8 +23,10 @@ export class LectorFantasy {
   #cliente;
   #cmp;
 
-  constructor({ email, password, ficheroSesion, competicionId = '1' }) {
-    this.sesion = crearSesion({ email, password, fichero: ficheroSesion });
+  // Desde el 15 de octubre de 2026 la sesión no usa correo ni contraseña:
+  // se inicia desde el panel, en la página de LaLiga (ver auth.js).
+  constructor({ ficheroSesion, competicionId = '1' }) {
+    this.sesion = crearSesion({ fichero: ficheroSesion });
     this.#cliente = new ClienteFantasy({ sesion: this.sesion });
     this.#cmp = `/api/v1/competition/${competicionId}`;
   }

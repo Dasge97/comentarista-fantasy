@@ -434,6 +434,104 @@ function PestanaSeguridad({ alTerminar }) {
   );
 }
 
+/**
+ * Login de Fantasy en la página de LaLiga.
+ *
+ * LaLiga quitó el 15 de octubre de 2026 el login con correo y contraseña.
+ * Ahora hay que entrar en su página; al terminar, la página intenta volver
+ * a la app con una dirección authredirect://... que el navegador no sabe
+ * abrir y deja escrita en la consola. Esa dirección se pega aquí.
+ */
+function LoginFantasy({ sesion, alTerminar }) {
+  const [abierta, setAbierta] = useState(false);
+  const [respuesta, setRespuesta] = useState('');
+  const [mensaje, setMensaje] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  async function abrir() {
+    setMensaje(null);
+    // La pestaña se abre antes de la petición: si se abre después, el
+    // navegador la trata como ventana emergente y la bloquea.
+    const pestana = window.open('about:blank', '_blank');
+    try {
+      const r = await api.prepararLoginFantasy();
+      if (pestana) pestana.location.href = r.url;
+      else window.location.href = r.url;
+      setAbierta(true);
+    } catch (e) {
+      pestana?.close();
+      setMensaje({ tipo: 'error', texto: e.message });
+    }
+  }
+
+  async function guardar() {
+    setOcupado(true);
+    setMensaje(null);
+    try {
+      await api.completarLoginFantasy(respuesta);
+      setRespuesta('');
+      setAbierta(false);
+      setMensaje({ tipo: 'bien', texto: 'Sesión iniciada. El bot vuelve a leer Fantasy en el próximo ciclo.' });
+      alTerminar();
+    } catch (e) {
+      setMensaje({ tipo: 'error', texto: e.message });
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <Tarjeta
+      titulo="Iniciar sesión en Fantasy"
+      explica={
+        sesion?.necesitaLogin
+          ? 'El bot no tiene sesión en Fantasy y no puede leer nada. Hay que entrar una vez en la página de LaLiga con la cuenta del bot. Después la sesión se renueva sola.'
+          : 'La sesión se renueva sola. Solo hace falta repetir esto si el bot avisa de que no puede leer Fantasy.'
+      }
+    >
+      <ol className="nota" style={{ paddingLeft: 18, marginTop: 0 }}>
+        <li>Pulsa «Abrir la página de LaLiga». Se abre en una pestaña nueva.</li>
+        <li>
+          En esa pestaña, <b>antes de entrar</b>, pulsa F12 y elige la pestaña <b>Consola</b> (Console).
+        </li>
+        <li>Entra con el correo y la contraseña de la cuenta del bot.</li>
+        <li>
+          Al terminar, la página se queda quieta y en la consola sale un error en rojo:{' '}
+          <code>Failed to launch 'authredirect://com.lfp.laligafantasy?…'</code>. Copia la dirección que va entre
+          comillas, desde <code>authredirect://</code> hasta el final. También vale copiar la línea entera.
+        </li>
+        <li>Pégala aquí abajo y pulsa «Guardar sesión». Tienes 20 minutos desde que abres la página.</li>
+      </ol>
+      <p className="nota">
+        Si en la consola no sale nada: en las herramientas de desarrollador, abre la pestaña Red (Network), marca
+        «Conservar registro» (Preserve log), entra otra vez y busca «authredirect».
+      </p>
+
+      <button className="accion" type="button" onClick={abrir} disabled={ocupado}>
+        Abrir la página de LaLiga
+      </button>
+
+      {abierta ? (
+        <div style={{ marginTop: 12 }}>
+          <Campo etiqueta="Dirección authredirect://…">
+            <textarea
+              value={respuesta}
+              onChange={(e) => setRespuesta(e.target.value)}
+              placeholder="authredirect://com.lfp.laligafantasy?state=…&code=…"
+              rows={3}
+            />
+          </Campo>
+          <button className="accion" type="button" onClick={guardar} disabled={ocupado || !respuesta.trim()}>
+            {ocupado ? 'Guardando…' : 'Guardar sesión'}
+          </button>
+        </div>
+      ) : null}
+
+      {mensaje ? <Aviso tipo={mensaje.tipo === 'bien' ? 'bien' : 'error'}>{mensaje.texto}</Aviso> : null}
+    </Tarjeta>
+  );
+}
+
 export function Estado() {
   const { datos, error, cargando, recargar } = useDatos(() => api.estado());
   const { datos: incidencias, recargar: recargarIncidencias } = useDatos(() => api.incidencias());
@@ -464,8 +562,7 @@ export function Estado() {
 
       {!datos?.configurado ? (
         <Aviso tipo="ojo">
-          Falta configuración. Ve a Configuración, pestaña Fantasy, y rellena las credenciales y el identificador de la
-          liga.
+          Falta configuración. Ve a Configuración, pestaña Fantasy, y rellena el identificador de la liga.
         </Aviso>
       ) : null}
 
@@ -478,12 +575,14 @@ export function Estado() {
         />
         <Dato
           titulo="Sesión de Fantasy"
-          valor={datos.sesionFantasy.activa ? 'Viva' : 'Caducada'}
-          tono={datos.sesionFantasy.activa ? 'bien' : 'mal'}
+          valor={datos.sesionFantasy.necesitaLogin ? 'Hay que entrar' : datos.sesionFantasy.activa ? 'Viva' : 'Caducada'}
+          tono={datos.sesionFantasy.necesitaLogin ? 'mal' : datos.sesionFantasy.activa ? 'bien' : undefined}
           detalle={
-            datos.sesionFantasy.activa
-              ? `Le quedan ${datos.sesionFantasy.minutosRestantes} minutos.`
-              : 'Se renovará sola en la próxima lectura.'
+            datos.sesionFantasy.necesitaLogin
+              ? 'Usa «Iniciar sesión en Fantasy», más abajo.'
+              : datos.sesionFantasy.activa
+                ? `Le quedan ${datos.sesionFantasy.minutosRestantes} minutos.`
+                : 'Se renovará sola en la próxima lectura.'
           }
         />
         <Dato
@@ -500,6 +599,8 @@ export function Estado() {
           detalle="Con una lectura a medias el bot calla en el grupo."
         />
       </div>
+
+      <LoginFantasy sesion={datos.sesionFantasy} alTerminar={recargar} />
 
       <Columnas>
         <Tarjeta

@@ -41,6 +41,8 @@ export const api = {
   borrarUsuario: (id) => peticion(`/usuarios/${id}`, { metodo: 'DELETE' }),
 
   forzarLectura: () => peticion('/acciones/lectura', { metodo: 'POST' }),
+  prepararLoginFantasy: () => peticion('/fantasy/login', { metodo: 'POST' }),
+  completarLoginFantasy: (respuesta) => peticion('/fantasy/login/completar', { metodo: 'POST', cuerpo: { respuesta } }),
   probarRedactor: () => peticion('/acciones/probar-redactor', { metodo: 'POST' }),
   modelosDisponibles: () => peticion('/acciones/modelos'),
 

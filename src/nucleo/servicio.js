@@ -22,6 +22,7 @@ export class Servicio {
   #redactor;
   #ficheroSesion;
   #lector = null;
+  #sinSesionAvisado = false;
   #vivo = false;
   #ultimoCicloLento = 0;
   #jornada = null;
@@ -50,11 +51,12 @@ export class Servicio {
     if (nivel === 'error') this.estado.ultimoError = { mensaje: String(mensaje), cuando: new Date().toISOString() };
   }
 
-  /** Rehace el lector cuando cambian las credenciales desde la web. */
+  /** Aplica los cambios de configuración hechos desde la web. */
   refrescarConfiguracion() {
-    const email = this.#config.obtener('fantasy_email');
-    const password = this.#config.obtener('fantasy_password');
-    this.#lector = email && password ? new LectorFantasy({ email, password, ficheroSesion: this.#ficheroSesion }) : null;
+    // El lector no depende de la configuración: la sesión se inicia desde el
+    // panel. Se crea una sola vez, porque guarda en memoria el login que
+    // está a medias entre "abrir la página de LaLiga" y "pegar la dirección".
+    if (!this.#lector) this.#lector = new LectorFantasy({ ficheroSesion: this.#ficheroSesion });
     this.#telegram.cambiarToken(this.#config.obtener('telegram_token'));
     this.#redactor.configurar({
       proveedor: this.#config.obtener('proveedor_modelo'),
@@ -73,6 +75,30 @@ export class Servicio {
 
   get lector() {
     return this.#lector;
+  }
+
+  /** Mensaje privado de Telegram al administrador. Si falla, solo queda anotado. */
+  async #avisarAlAdministrador(texto) {
+    const admin = this.#usuarios.administrador();
+    if (!admin?.telegram_id || !this.#telegram.configurado) return;
+    const panel = this.#config.obtener('url_publica');
+    const enlace = panel ? `\n\nEntra en ${panel}/#estado y pulsa «Abrir la página de LaLiga».` : '';
+    const escapar = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const r = await this.#telegram.enviar(admin.telegram_id, `⚠️ <b>El bot no puede leer Fantasy.</b>\n${escapar(texto)}${enlace}`);
+    if (!r.ok) this.#anotar('aviso', `No se pudo avisar al administrador por Telegram: ${r.motivo}`);
+  }
+
+  /** Primer paso del login de Fantasy: la dirección de la página de LaLiga. */
+  prepararLoginFantasy() {
+    return this.#lector.sesion.prepararLogin();
+  }
+
+  /** Segundo paso: la dirección authredirect://... que dejó la página de LaLiga. */
+  async completarLoginFantasy(texto) {
+    const estado = await this.#lector.sesion.completarLogin(texto);
+    this.#sinSesionAvisado = false;
+    this.#anotar('info', 'Sesión de Fantasy iniciada desde el panel.');
+    return estado;
   }
 
   get configurado() {
@@ -103,14 +129,27 @@ export class Servicio {
       try {
         if (this.configurado) {
           espera = await this.#unCiclo();
+          this.#sinSesionAvisado = false;
         } else {
           this.estado.ritmo = 'sin configurar';
           espera = 30000;
         }
       } catch (error) {
-        this.#anotar('error', `Ciclo fallido: ${error.message}`);
-        // Con un partido en marcha no se puede esperar un minuto entero.
-        espera = this.#hayPrisa() ? 15000 : 60000;
+        if (error.sinSesion) {
+          // Sin sesión no hay nada que hacer hasta que alguien entre desde el
+          // panel. Se anota y se avisa una sola vez, no en cada ciclo.
+          this.estado.ritmo = 'sin sesión de Fantasy';
+          if (!this.#sinSesionAvisado) {
+            this.#sinSesionAvisado = true;
+            this.#anotar('error', error.message);
+            await this.#avisarAlAdministrador(error.message);
+          }
+          espera = 60000;
+        } else {
+          this.#anotar('error', `Ciclo fallido: ${error.message}`);
+          // Con un partido en marcha no se puede esperar un minuto entero.
+          espera = this.#hayPrisa() ? 15000 : 60000;
+        }
       }
       this.estado.proximoCiclo = new Date(Date.now() + espera).toISOString();
       await new Promise((r) => setTimeout(r, espera));
@@ -638,8 +677,9 @@ export class Servicio {
           espera = 60000;
         }
       } catch (error) {
-        this.#anotar('aviso', `Fallo al traer precios históricos: ${error.message}`);
-        espera = 120000;
+        // Sin sesión, el aviso ya lo da el bucle principal.
+        if (!error.sinSesion) this.#anotar('aviso', `Fallo al traer precios históricos: ${error.message}`);
+        espera = error.sinSesion ? 300000 : 120000;
       }
       await new Promise((r) => setTimeout(r, espera));
     }
@@ -824,7 +864,7 @@ export class Servicio {
    * sin esperar a que haya partido.
    */
   simular(opciones) {
-    if (!this.configurado) throw new Error('Faltan credenciales o identificador de liga.');
+    if (!this.configurado) throw new Error('Falta el identificador de la liga.');
     const simulacion = new Simulacion({
       lector: this.#lector,
       almacen: this.#almacen,
@@ -847,7 +887,7 @@ export class Servicio {
 
   /** Lectura forzada desde el panel de administración. */
   async forzarLectura() {
-    if (!this.configurado) throw new Error('Faltan credenciales o identificador de liga.');
+    if (!this.configurado) throw new Error('Falta el identificador de la liga.');
     const jornada = await this.#jornadaActual();
     await this.#actualizarPartidos(jornada.numero);
     await this.#leerPuntuacion(jornada.numero);
