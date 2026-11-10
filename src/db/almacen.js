@@ -1,6 +1,29 @@
 import { ahora, enTransaccion, hoy } from './db.js';
 
 /**
+ * Futbolistas a los que hay que pedir la serie completa de precios:
+ * - los que nunca la han tenido, o
+ * - los que no tienen el precio de ayer y no se han pedido hoy. Pasa cuando
+ *   el bot ha estado parado: del 15 de octubre al 9 de noviembre de 2026 no
+ *   leyó nada, y como todos estaban marcados, el hueco no se rellenaba nunca.
+ *   Como mucho se piden una vez al día, para que un futbolista nuevo sin
+ *   precio de ayer no se pida en cada tanda.
+ * Parámetros: hoy, hoy, ayer (ver fechasHueco).
+ */
+const SIN_HISTORICO = `(
+  f.historico_traido_en IS NULL
+  OR (substr(f.historico_traido_en, 1, 10) < ?
+      AND EXISTS (SELECT 1 FROM valor_futbolista v WHERE v.futbolista_id = f.id AND v.fecha = ?)
+      AND NOT EXISTS (SELECT 1 FROM valor_futbolista v WHERE v.futbolista_id = f.id AND v.fecha = ?))
+)`;
+
+function fechasHueco() {
+  const dia = hoy();
+  const ayer = new Date(Date.parse(`${dia}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+  return [dia, dia, ayer];
+}
+
+/**
  * Guarda y consulta los datos de la liga.
  *
  * Las escrituras siguen siempre la misma regla: se actualiza la tabla de
@@ -556,13 +579,13 @@ export class Almacen {
    */
   futbolistasSinHistorico(limite = 60) {
     return this.#db
-      .prepare('SELECT id FROM futbolistas WHERE historico_traido_en IS NULL LIMIT ?')
-      .all(limite)
+      .prepare(`SELECT f.id FROM futbolistas f WHERE ${SIN_HISTORICO} LIMIT ?`)
+      .all(...fechasHueco(), limite)
       .map((f) => f.id);
   }
 
   cuantosSinHistorico() {
-    return this.#db.prepare('SELECT COUNT(*) AS n FROM futbolistas WHERE historico_traido_en IS NULL').get().n;
+    return this.#db.prepare(`SELECT COUNT(*) AS n FROM futbolistas f WHERE ${SIN_HISTORICO}`).get(...fechasHueco()).n;
   }
 
   marcarHistoricoTraido(futbolistaId) {
