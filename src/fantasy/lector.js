@@ -191,6 +191,7 @@ export class LectorFantasy {
       valor: f.marketValue != null ? Number(f.marketValue) : null,
       puntos: f.points != null ? Number(f.points) : null,
       media: f.averagePoints != null ? Number(f.averagePoints) : null,
+      foto: f.image || null,
     }));
   }
 

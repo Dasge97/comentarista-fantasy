@@ -319,4 +319,12 @@ export const MIGRACIONES = [
       ALTER TABLE futbolistas ADD COLUMN historico_traido_en TEXT;
     `,
   },
+  {
+    // Foto del futbolista (PNG de 256x256 con fondo transparente), para los
+    // vídeos de la cuenta de Instagram. Viene en el campo image de /players.
+    nombre: '010-foto-del-futbolista',
+    sql: `
+      ALTER TABLE futbolistas ADD COLUMN foto TEXT;
+    `,
+  },
 ];

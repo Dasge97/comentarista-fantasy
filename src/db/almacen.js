@@ -419,8 +419,8 @@ export class Almacen {
 
   guardarFutbolistas(futbolistas) {
     const sql = this.#db.prepare(`
-      INSERT INTO futbolistas (id, nombre, posicion_id, equipo_real_id, estado, puntos_temporada, media, valor_actual, actualizado_en)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO futbolistas (id, nombre, posicion_id, equipo_real_id, estado, puntos_temporada, media, valor_actual, foto, actualizado_en)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         nombre = excluded.nombre,
         posicion_id = excluded.posicion_id,
@@ -429,13 +429,72 @@ export class Almacen {
         puntos_temporada = excluded.puntos_temporada,
         media = excluded.media,
         valor_actual = excluded.valor_actual,
+        foto = COALESCE(excluded.foto, futbolistas.foto),
         actualizado_en = excluded.actualizado_en
     `);
     enTransaccion(this.#db, () => {
       for (const f of futbolistas) {
-        sql.run(f.id, f.nombre, f.posicionId, f.equipoRealId, f.estado, f.puntos ?? null, f.media ?? null, f.valor ?? null, ahora());
+        sql.run(f.id, f.nombre, f.posicionId, f.equipoRealId, f.estado, f.puntos ?? null, f.media ?? null, f.valor ?? null, f.foto ?? null, ahora());
       }
     });
+  }
+
+  /**
+   * Los que más suben y los que más bajan de valor entre dos días seguidos
+   * con datos. Para los vídeos de la cuenta de Instagram.
+   *
+   * fecha: día a comparar (AAAA-MM-DD); por defecto, el último con datos.
+   * Se compara con el día con datos inmediatamente anterior.
+   * valorMaximo: solo futbolistas que valgan como mucho eso (para "subidas baratas").
+   */
+  rankingDeMercado({ fecha = null, limite = 5, valorMaximo = null, diasSerie = 7 } = {}) {
+    const dia = fecha || this.#db.prepare('SELECT MAX(fecha) AS f FROM valor_futbolista').get().f;
+    if (!dia) return { fecha: null, fechaAnterior: null, subidas: [], bajadas: [] };
+    const anterior = this.#db.prepare('SELECT MAX(fecha) AS f FROM valor_futbolista WHERE fecha < ?').get(dia).f;
+    if (!anterior) return { fecha: dia, fechaAnterior: null, subidas: [], bajadas: [] };
+
+    const POSICIONES = { 1: 'portero', 2: 'defensa', 3: 'centrocampista', 4: 'delantero', 5: 'entrenador' };
+    const consulta = (orden) =>
+      this.#db
+        .prepare(`
+          SELECT f.id, f.nombre, f.posicion_id, f.estado, f.foto, f.puntos_temporada, f.media,
+                 e.nombre AS equipo, e.escudo,
+                 h.valor AS valor, a.valor AS valor_anterior, h.valor - a.valor AS variacion
+          FROM valor_futbolista h
+          JOIN valor_futbolista a ON a.futbolista_id = h.futbolista_id AND a.fecha = ?
+          JOIN futbolistas f ON f.id = h.futbolista_id
+          LEFT JOIN equipos e ON e.id = f.equipo_real_id
+          WHERE h.fecha = ? AND h.valor IS NOT NULL AND a.valor IS NOT NULL
+            AND f.posicion_id != 5
+            AND (? IS NULL OR h.valor <= ?)
+            AND h.valor - a.valor ${orden === 'DESC' ? '> 0' : '< 0'}
+          ORDER BY variacion ${orden}
+          LIMIT ?
+        `)
+        .all(anterior, dia, valorMaximo, valorMaximo, limite);
+
+    const serie = this.#db.prepare(`
+      SELECT fecha, valor FROM valor_futbolista
+      WHERE futbolista_id = ? AND fecha <= ? AND valor IS NOT NULL
+      ORDER BY fecha DESC LIMIT ?
+    `);
+    const preparar = (f) => ({
+      id: f.id,
+      nombre: f.nombre,
+      posicion: POSICIONES[f.posicion_id] || null,
+      estado: f.estado,
+      foto: f.foto,
+      equipo: f.equipo ? { nombre: f.equipo, escudo: f.escudo } : null,
+      valor: f.valor,
+      valorAnterior: f.valor_anterior,
+      variacion: f.variacion,
+      porcentaje: f.valor_anterior ? Math.round((f.variacion / f.valor_anterior) * 1000) / 10 : null,
+      puntos: f.puntos_temporada,
+      media: f.media,
+      serie: serie.all(f.id, dia, diasSerie).reverse(),
+    });
+
+    return { fecha: dia, fechaAnterior: anterior, subidas: consulta('DESC').map(preparar), bajadas: consulta('ASC').map(preparar) };
   }
 
   /** Futbolistas que un manager tiene ahora mismo y no están en condiciones de jugar. */

@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { AJUSTES, contrasenaCorrecta, resumirContrasena } from '../db/configuracion.js';
 import { NOMBRE_TIPO } from '../nucleo/dinero.js';
 
@@ -155,6 +156,30 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
   app.delete('/api/usuarios/:id', identificado, soloAdministrador, (req, res) => {
     usuarios.borrar(Number(req.params.id));
     res.json({ ok: true });
+  });
+
+  // ---------- Contenido para los vídeos de Instagram ----------
+  //
+  // Lo usa la herramienta de vídeos (videos-explicativos), no la web. Va con
+  // su propio token en "Authorization: Bearer", no con la cookie del panel.
+
+  function conTokenDeContenido(req, res, next) {
+    const esperado = config.obtener('token_contenido');
+    const recibido = (req.get('authorization') || '').replace(/^Bearer\s+/i, '');
+    const a = Buffer.from(recibido);
+    const b = Buffer.from(esperado || '');
+    if (!esperado || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(401).json({ error: 'Token de contenido incorrecto.' });
+    }
+    next();
+  }
+
+  // GET /api/contenido/mercado?fecha=AAAA-MM-DD&limite=5&valorMaximo=25000000
+  app.get('/api/contenido/mercado', conTokenDeContenido, (req, res) => {
+    const fecha = /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha || '') ? req.query.fecha : null;
+    const limite = Math.min(Math.max(Number(req.query.limite) || 5, 1), 20);
+    const valorMaximo = Number(req.query.valorMaximo) > 0 ? Number(req.query.valorMaximo) : null;
+    res.json(almacen.rankingDeMercado({ fecha, limite, valorMaximo }));
   });
 
   // ---------- Login de Fantasy ----------

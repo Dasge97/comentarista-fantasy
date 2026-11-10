@@ -33,6 +33,9 @@ export const AJUSTES = {
 
   // Dirección pública de la web. Se usa en los enlaces que reparte el bot.
   url_publica: { defecto: 'https://fantasybot.code-hive.space', secreto: false, titulo: 'Dirección pública de la web' },
+  // Token de las rutas /api/contenido, que usa la herramienta de vídeos de
+  // Instagram (videos-explicativos). Se manda como "Authorization: Bearer".
+  token_contenido: { defecto: '', secreto: true, titulo: 'Token de la API de contenido (vídeos)' },
 
   // Liga.
   liga_id: { defecto: '', secreto: false, titulo: 'Identificador de la liga' },
