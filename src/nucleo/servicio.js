@@ -719,13 +719,13 @@ export class Servicio {
 
   /**
    * Rellena las jornadas pasadas que no están terminadas en la tabla de partidos (por ejemplo,
-   * las que se jugaron con el bot parado). Como mucho dos por llamada, para no cargar Fantasy.
+   * las que se jugaron con el bot parado). Como mucho seis por llamada: cada una es una consulta ligera.
    */
   async #rellenarPartidosPasados() {
     const actual = await this.#jornadaActual();
     const dia = new Date().toISOString().slice(0, 10);
     let hechas = 0;
-    for (let j = 1; j < actual.numero && hechas < 2; j++) {
+    for (let j = 1; j < actual.numero && hechas < 6; j++) {
       const partidos = this.#almacen.partidosDeLaJornada(j);
       if (partidos.length > 0 && partidos.every((p) => p.estado === ESTADO_FINALIZADO)) continue;
       // Una jornada con un partido aplazado nunca queda entera: se mira como mucho una vez al día,
