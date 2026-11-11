@@ -182,6 +182,89 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     res.json(almacen.rankingDeMercado({ fecha, limite, valorMaximo }));
   });
 
+  // Los partidos se leen de Fantasy en el momento, no de la base de datos:
+  // la tabla de partidos solo tiene la jornada en curso. Se guarda 10 minutos
+  // en memoria para no repetir consultas si se piden varias veces.
+  const cache = new Map();
+  async function conCache(clave, leer) {
+    const guardado = cache.get(clave);
+    if (guardado && Date.now() - guardado.cuando < 10 * 60000) return guardado.valor;
+    const valor = await leer();
+    cache.set(clave, { valor, cuando: Date.now() });
+    return valor;
+  }
+
+  /** Jornada pedida o, si no se pide, la última con algún partido terminado. */
+  async function jornadaDeContenido(pedida) {
+    if (Number(pedida) > 0) return Number(pedida);
+    const actual = await servicio.lector.jornadaActual();
+    const partidos = await conCache(`jornada-${actual.numero}`, () => servicio.lector.partidosDeJornada(actual.numero));
+    return partidos.some((p) => p.estado === 7) ? actual.numero : actual.anterior ?? actual.numero - 1;
+  }
+
+  const TERMINADO = 7;
+  const resumenDePartido = (p) => ({
+    id: p.id,
+    jornada: p.jornada,
+    fecha: p.fecha,
+    terminado: p.estado === TERMINADO,
+    local: { id: p.local.id, nombre: p.local.nombre, escudo: p.local.escudo },
+    visitante: { id: p.visitante.id, nombre: p.visitante.nombre, escudo: p.visitante.escudo },
+    golesLocal: p.golesLocal,
+    golesVisitante: p.golesVisitante,
+  });
+
+  // GET /api/contenido/partidos?jornada=12 → partidos de la jornada (por defecto, la última con alguno terminado)
+  app.get('/api/contenido/partidos', conTokenDeContenido, async (req, res) => {
+    try {
+      const jornada = await jornadaDeContenido(req.query.jornada);
+      const partidos = await conCache(`jornada-${jornada}`, () => servicio.lector.partidosDeJornada(jornada));
+      res.json({ jornada, partidos: partidos.map(resumenDePartido) });
+    } catch (error) {
+      res.status(502).json({ error: `No se pudo leer Fantasy: ${error.message}` });
+    }
+  });
+
+  // GET /api/contenido/partido?id=75&jornada=12 → resultado, los tres mejores y el peor del partido,
+  // con lo que hizo cada uno (goles, asistencias, tarjetas, paradas). Sin id, el último terminado.
+  app.get('/api/contenido/partido', conTokenDeContenido, async (req, res) => {
+    try {
+      const jornada = await jornadaDeContenido(req.query.jornada);
+      const partidos = await conCache(`jornada-${jornada}`, () => servicio.lector.partidosDeJornada(jornada));
+      const terminados = partidos.filter((p) => p.estado === TERMINADO).sort((a, b) => b.fecha.localeCompare(a.fecha));
+      const partido = req.query.id ? partidos.find((p) => p.id === String(req.query.id)) : terminados[0];
+      if (!partido) return res.status(404).json({ error: 'No existe ese partido en esa jornada.' });
+      if (partido.estado !== TERMINADO) return res.status(409).json({ error: 'Ese partido aún no ha terminado.' });
+
+      const POSICIONES = { 1: 'portero', 2: 'defensa', 3: 'centrocampista', 4: 'delantero' };
+      const jugaron = [
+        ...partido.local.futbolistas.map((f) => ({ ...f, equipo: partido.local })),
+        ...partido.visitante.futbolistas.map((f) => ({ ...f, equipo: partido.visitante })),
+      ].filter((f) => f.puntos != null && f.posicionId !== 5);
+      const ordenados = [...jugaron].sort((a, b) => b.puntos - a.puntos);
+      const mejores = ordenados.slice(0, 3);
+      // El peor solo sale si de verdad lo hizo mal: puntos negativos o cero.
+      const peor = ordenados.length > 3 && ordenados[ordenados.length - 1].puntos <= 0 ? ordenados[ordenados.length - 1] : null;
+
+      const ficha = async (f) => ({
+        id: f.id,
+        nombre: f.nombre,
+        posicion: POSICIONES[f.posicionId] || null,
+        foto: f.foto,
+        equipo: { nombre: f.equipo.nombre, escudo: f.equipo.escudo },
+        puntos: f.puntos,
+        estadisticas: await conCache(`ficha-${f.id}-${jornada}`, () => servicio.lector.estadisticasDeJornada(f.id, jornada)),
+      });
+      res.json({
+        partido: resumenDePartido(partido),
+        mejores: await Promise.all(mejores.map(ficha)),
+        peor: peor ? await ficha(peor) : null,
+      });
+    } catch (error) {
+      res.status(502).json({ error: `No se pudo leer Fantasy: ${error.message}` });
+    }
+  });
+
   // ---------- Login de Fantasy ----------
 
   app.post('/api/fantasy/login', identificado, soloAdministrador, async (_req, res) => {

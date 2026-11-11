@@ -234,6 +234,58 @@ export class LectorFantasy {
     return [...equipos.values()];
   }
 
+  /**
+   * Partidos de una jornada con resultado y los puntos de la jornada de cada
+   * futbolista que jugó, con su foto. Para los resúmenes de partido de los
+   * vídeos de Instagram. matchState 7 = terminado.
+   */
+  async partidosDeJornada(jornada) {
+    const datos = await this.#cliente.get(`/stats/v1/competition/1/stats/week/${jornada}?x-lang=es`);
+    const equipo = (e) => ({
+      id: String(e.id),
+      nombre: e.mainName,
+      escudo: e.badgeColor || null,
+      futbolistas: (e.players || []).map((f) => ({
+        id: String(f.id),
+        nombre: f.nickname || f.name,
+        posicionId: f.positionId != null ? Number(f.positionId) : null,
+        foto: f.images?.transparent?.['256x256'] || null,
+        puntos: f.weekPoints != null ? Number(f.weekPoints) : null,
+      })),
+    });
+    return (datos || []).map((p) => ({
+      id: String(p.id),
+      jornada: Number(jornada),
+      fecha: p.date,
+      estado: Number(p.matchState),
+      golesLocal: p.localScore,
+      golesVisitante: p.visitorScore,
+      local: equipo(p.local),
+      visitante: equipo(p.visitor),
+    }));
+  }
+
+  /** Lo que hizo un futbolista en una jornada: puntos, minutos, goles, asistencias, tarjetas, paradas. */
+  async estadisticasDeJornada(futbolistaId, jornada) {
+    const datos = await this.#cliente.get(`${this.#cmp}/player/${futbolistaId}?x-lang=es`);
+    const s = (datos?.playerStats || []).find((x) => Number(x.weekNumber) === Number(jornada));
+    if (!s) return null;
+    const n = (clave) => Number(s.stats?.[clave]?.[0] ?? 0);
+    return {
+      puntos: s.totalPoints != null ? Number(s.totalPoints) : null,
+      minutos: n('mins_played'),
+      goles: n('goals'),
+      asistencias: n('goal_assist'),
+      paradas: n('saves'),
+      penaltisParados: n('penalty_save'),
+      penaltisFallados: n('penalty_failed'),
+      golesEnPropia: n('own_goals'),
+      amarillas: n('yellow_card'),
+      rojas: n('red_card') + n('second_yellow_card'),
+      onceIdeal: Boolean(s.isInIdealFormation),
+    };
+  }
+
   /** Dinero de la cuenta propia. Para un rival responde HTTP 403. */
   async dineroPropio(equipoId) {
     const datos = await this.#cliente.get(`${this.#cmp}/teams/${equipoId}/money?x-lang=es`);
