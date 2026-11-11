@@ -255,6 +255,35 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     }
   });
 
+  // GET /api/contenido/previa-dia?fecha=2026-11-21 → los partidos que se juegan ese día (hora de España;
+  // por defecto, hoy), en orden, cada uno con los últimos cinco resultados de los dos equipos y el
+  // futbolista a vigilar (el de los dos con más puntos en las tres últimas jornadas). 404 si ese día no
+  // hay partidos: así la tarea diaria sabe si es día de partidos.
+  app.get('/api/contenido/previa-dia', conTokenDeContenido, async (req, res) => {
+    try {
+      const diaDe = (iso) => new Date(iso).toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+      const dia = /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha || '') ? req.query.fecha : diaDe(new Date().toISOString());
+      const actual = await servicio.lector.jornadaActual();
+      const candidatas = [...new Set([actual.anterior, actual.numero, actual.siguiente].filter((j) => j > 0))];
+      const partidos = [];
+      for (const j of candidatas) {
+        const lista = await conCache(`jornada-${j}`, () => servicio.lector.partidosDeJornada(j));
+        partidos.push(...lista.filter((p) => diaDe(p.fecha) === dia));
+      }
+      if (partidos.length === 0) return res.status(404).json({ error: `El ${dia} no hay partidos.` });
+      partidos.sort((a, b) => a.fecha.localeCompare(b.fecha));
+      res.json({
+        fecha: dia,
+        partidos: partidos.map((p) => {
+          const previa = almacen.previaDePartido(p.local.id, p.visitante.id);
+          return { partido: resumenDePartido(p), formaLocal: previa.formaLocal, formaVisitante: previa.formaVisitante, vigilar: previa.vigilar[0] ?? null };
+        }),
+      });
+    } catch (error) {
+      res.status(502).json({ error: `No se pudo leer Fantasy: ${error.message}` });
+    }
+  });
+
   // GET /api/contenido/partido?id=75&jornada=12 → resultado, los tres mejores y el peor del partido,
   // con lo que hizo cada uno (goles, asistencias, tarjetas, paradas). Sin id, el último terminado.
   app.get('/api/contenido/partido', conTokenDeContenido, async (req, res) => {
