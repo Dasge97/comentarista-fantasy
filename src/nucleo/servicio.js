@@ -23,6 +23,7 @@ export class Servicio {
   #ficheroSesion;
   #lector = null;
   #sinSesionAvisado = false;
+  #partidosRellenados = new Map(); // jornada → día en que se rellenó por última vez
   #vivo = false;
   #ultimoCicloLento = 0;
   #jornada = null;
@@ -722,10 +723,15 @@ export class Servicio {
    */
   async #rellenarPartidosPasados() {
     const actual = await this.#jornadaActual();
+    const dia = new Date().toISOString().slice(0, 10);
     let hechas = 0;
     for (let j = 1; j < actual.numero && hechas < 2; j++) {
       const partidos = this.#almacen.partidosDeLaJornada(j);
       if (partidos.length > 0 && partidos.every((p) => p.estado === ESTADO_FINALIZADO)) continue;
+      // Una jornada con un partido aplazado nunca queda entera: se mira como mucho una vez al día,
+      // para que no tape a las siguientes.
+      if (this.#partidosRellenados.get(j) === dia) continue;
+      this.#partidosRellenados.set(j, dia);
       const calendario = await this.#lector.calendario(j);
       this.#almacen.guardarPartidos(calendario, j, ESTADO_FINALIZADO, { historico: true });
       hechas += 1;
