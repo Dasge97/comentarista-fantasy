@@ -520,6 +520,242 @@ export class Almacen {
     return { fecha: dia, fechaAnterior: anterior, subidas: consulta('DESC').map(preparar), bajadas: consulta('ASC').map(preparar) };
   }
 
+  // ---------- Estadísticas por jornada (para los vídeos) ----------
+
+  /** Guarda lo que hizo un futbolista en cada jornada (de LectorFantasy.estadisticasDeTemporada). */
+  guardarEstadisticas(futbolistaId, jornadas) {
+    const sql = this.#db.prepare(`
+      INSERT INTO estadistica_jornada (futbolista_id, jornada, puntos, minutos, goles, asistencias, ocasiones, entradas_area,
+        paradas, goles_encajados, amarillas, rojas, once_ideal, estadisticas, actualizado_en)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(futbolista_id, jornada) DO UPDATE SET
+        puntos = excluded.puntos, minutos = excluded.minutos, goles = excluded.goles, asistencias = excluded.asistencias,
+        ocasiones = excluded.ocasiones, entradas_area = excluded.entradas_area, paradas = excluded.paradas,
+        goles_encajados = excluded.goles_encajados, amarillas = excluded.amarillas, rojas = excluded.rojas,
+        once_ideal = excluded.once_ideal, estadisticas = excluded.estadisticas, actualizado_en = excluded.actualizado_en
+    `);
+    enTransaccion(this.#db, () => {
+      for (const j of jornadas) {
+        sql.run(String(futbolistaId), j.jornada, j.puntos, j.minutos, j.goles, j.asistencias, j.ocasiones, j.entradasArea,
+          j.paradas, j.golesEncajados, j.amarillas, j.rojas, j.onceIdeal ? 1 : 0, j.bruto ? JSON.stringify(j.bruto) : null, ahora());
+      }
+    });
+    this.#db.prepare('UPDATE futbolistas SET estadisticas_traidas_en = ? WHERE id = ?').run(ahora(), String(futbolistaId));
+  }
+
+  /** Futbolistas a los que hoy aún no se les han pedido las estadísticas. Se piden una vez al día. */
+  futbolistasSinEstadisticas(limite = 20) {
+    return this.#db
+      .prepare(`
+        SELECT id FROM futbolistas
+        WHERE posicion_id != 5 AND (estadisticas_traidas_en IS NULL OR substr(estadisticas_traidas_en, 1, 10) < ?)
+        ORDER BY estadisticas_traidas_en IS NOT NULL, valor_actual DESC LIMIT ?
+      `)
+      .all(hoy(), limite)
+      .map((f) => f.id);
+  }
+
+  cuantosSinEstadisticas() {
+    return this.#db
+      .prepare('SELECT COUNT(*) AS n FROM futbolistas WHERE posicion_id != 5 AND (estadisticas_traidas_en IS NULL OR substr(estadisticas_traidas_en, 1, 10) < ?)')
+      .get(hoy()).n;
+  }
+
+  /** Las últimas n jornadas con estadísticas guardadas, de la más nueva a la más vieja. */
+  #jornadasRecientes(n) {
+    return this.#db
+      .prepare('SELECT DISTINCT jornada FROM estadistica_jornada WHERE minutos > 0 ORDER BY jornada DESC LIMIT ?')
+      .all(n)
+      .map((x) => x.jornada);
+  }
+
+  /** Ficha común de un futbolista para los vídeos: foto, equipo, precio y variación del último día. */
+  #fichaParaVideo(id) {
+    const f = this.#db
+      .prepare(`
+        SELECT f.id, f.nombre, f.posicion_id, f.estado, f.foto, f.valor_actual, f.puntos_temporada, f.media, f.equipo_real_id,
+               e.nombre AS equipo, e.escudo
+        FROM futbolistas f LEFT JOIN equipos e ON e.id = f.equipo_real_id WHERE f.id = ?
+      `)
+      .get(String(id));
+    if (!f) return null;
+    const ultimos = this.#db
+      .prepare('SELECT valor FROM valor_futbolista WHERE futbolista_id = ? AND valor IS NOT NULL ORDER BY fecha DESC LIMIT 2')
+      .all(String(id));
+    const POSICIONES = { 1: 'portero', 2: 'defensa', 3: 'centrocampista', 4: 'delantero' };
+    const valor = ultimos[0]?.valor ?? f.valor_actual;
+    const anterior = ultimos[1]?.valor ?? valor;
+    return {
+      id: f.id,
+      nombre: f.nombre,
+      posicion: POSICIONES[f.posicion_id] || null,
+      estado: f.estado,
+      foto: f.foto,
+      equipo: f.equipo ? { id: f.equipo_real_id, nombre: f.equipo, escudo: f.escudo } : null,
+      valor,
+      valorAnterior: anterior,
+      variacion: valor != null && anterior != null ? valor - anterior : 0,
+      porcentaje: anterior ? Math.round(((valor - anterior) / anterior) * 1000) / 10 : null,
+      puntos: f.puntos_temporada,
+      media: f.media,
+    };
+  }
+
+  /**
+   * Rankings de estadísticas para los vídeos. Devuelve los futbolistas con una métrica principal
+   * (numero, etiqueta, corta) y detalles para las etiquetas de la tarjeta.
+   *
+   *   chollos:        valen 3 M o menos; más puntos por millón (mínimo 4 partidos y 250 minutos).
+   *   infravalorados: valen entre 3 y 20 M; más puntos por partido jugado (mínimo 5 partidos).
+   *   porteros:       más paradas en la temporada (mínimo 3 partidos).
+   *   creadores:      más creación: 3 por asistencia + ocasiones creadas + media por entrada al área.
+   *   en-forma:       más puntos en las tres últimas jornadas (mínimo 2 jugadas).
+   */
+  rankingDeEstadisticas({ tipo, limite = 5 }) {
+    const temporada = this.#db
+      .prepare(`
+        SELECT s.futbolista_id AS id, f.posicion_id, f.valor_actual AS valor,
+               SUM(s.minutos > 0) AS partidos, SUM(s.minutos) AS minutos, SUM(COALESCE(s.puntos, 0)) AS puntos,
+               SUM(s.goles) AS goles, SUM(s.asistencias) AS asistencias, SUM(s.ocasiones) AS ocasiones,
+               SUM(s.entradas_area) AS entradas, SUM(s.paradas) AS paradas,
+               SUM(s.minutos >= 60 AND s.goles_encajados = 0) AS porterias_a_cero
+        FROM estadistica_jornada s JOIN futbolistas f ON f.id = s.futbolista_id
+        WHERE f.posicion_id != 5
+        GROUP BY s.futbolista_id
+      `)
+      .all();
+    const coma = (n, d = 1) => n.toFixed(d).replace('.', ',');
+    const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+    let elegidos = [];
+
+    if (tipo === 'chollos') {
+      elegidos = temporada
+        .filter((t) => t.valor && t.valor <= 3e6 && t.partidos >= 4 && t.minutos >= 250 && t.puntos > 0)
+        .map((t) => ({ t, m: t.puntos / (t.valor / 1e6) }))
+        .sort((a, b) => b.m - a.m)
+        .map(({ t, m }) => ({
+          id: t.id,
+          metrica: { numero: coma(m), etiqueta: 'PUNTOS POR MILLÓN', corta: 'PTS/M' },
+          detalles: [plural(t.puntos, 'PUNTO', 'PUNTOS'), plural(t.partidos, 'PARTIDO', 'PARTIDOS'), `${t.minutos} MIN`],
+        }));
+    } else if (tipo === 'infravalorados') {
+      elegidos = temporada
+        .filter((t) => t.valor && t.valor > 3e6 && t.valor <= 20e6 && t.partidos >= 5)
+        .map((t) => ({ t, m: t.puntos / t.partidos }))
+        .sort((a, b) => b.m - a.m)
+        .map(({ t, m }) => ({
+          id: t.id,
+          metrica: { numero: coma(m), etiqueta: 'PUNTOS POR PARTIDO', corta: 'PTS/PART.' },
+          detalles: [plural(t.puntos, 'PUNTO', 'PUNTOS'), plural(t.partidos, 'PARTIDO', 'PARTIDOS')],
+        }));
+    } else if (tipo === 'porteros') {
+      elegidos = temporada
+        .filter((t) => t.posicion_id === 1 && t.partidos >= 3)
+        .sort((a, b) => b.paradas - a.paradas)
+        .map((t) => ({
+          id: t.id,
+          metrica: { numero: String(t.paradas), etiqueta: 'PARADAS', corta: 'PARADAS' },
+          detalles: [plural(t.porterias_a_cero, 'PORTERÍA A CERO', 'PORTERÍAS A CERO'), plural(t.partidos, 'PARTIDO', 'PARTIDOS')],
+        }));
+    } else if (tipo === 'creadores') {
+      elegidos = temporada
+        .filter((t) => t.partidos >= 3)
+        .map((t) => ({ t, m: Math.round(3 * t.asistencias + t.ocasiones + 0.5 * t.entradas) }))
+        .sort((a, b) => b.m - a.m)
+        .map(({ t, m }) => ({
+          id: t.id,
+          metrica: { numero: String(m), etiqueta: 'DE CREACIÓN', corta: 'CREACIÓN' },
+          detalles: [plural(t.asistencias, 'ASIST.', 'ASIST.'), plural(t.ocasiones, 'OCASIÓN', 'OCASIONES'), `${t.entradas} AL ÁREA`],
+        }));
+    } else if (tipo === 'en-forma') {
+      const jornadas = this.#jornadasRecientes(3);
+      if (jornadas.length === 0) return { tipo, jornadas, futbolistas: [] };
+      const huecos = jornadas.map(() => '?').join(', ');
+      const filas = this.#db
+        .prepare(`
+          SELECT s.futbolista_id AS id, SUM(COALESCE(s.puntos, 0)) AS puntos, SUM(s.minutos > 0) AS jugadas,
+                 GROUP_CONCAT(s.jornada || ':' || COALESCE(s.puntos, 0)) AS desglose
+          FROM estadistica_jornada s JOIN futbolistas f ON f.id = s.futbolista_id
+          WHERE s.jornada IN (${huecos}) AND f.posicion_id != 5
+          GROUP BY s.futbolista_id HAVING jugadas >= 2
+          ORDER BY puntos DESC
+        `)
+        .all(...jornadas);
+      elegidos = filas.map((t) => ({
+        id: t.id,
+        metrica: { numero: String(t.puntos), etiqueta: `PUNTOS EN ${jornadas.length} JORNADAS`, corta: 'PTS' },
+        detalles: String(t.desglose)
+          .split(',')
+          .map((x) => x.split(':').map(Number))
+          .sort((a, b) => a[0] - b[0])
+          .map(([j, p]) => `J${j}: ${p}`),
+      }));
+    } else {
+      throw new Error(`Tipo de ranking desconocido: ${tipo}`);
+    }
+
+    const futbolistas = [];
+    for (const e of elegidos) {
+      if (futbolistas.length >= limite) break;
+      const ficha = this.#fichaParaVideo(e.id);
+      if (ficha) futbolistas.push({ ...ficha, metrica: e.metrica, detalles: e.detalles });
+    }
+    return { tipo, jornadas: this.#jornadasRecientes(3), futbolistas };
+  }
+
+  /**
+   * Datos de la previa de un partido: los últimos cinco resultados de cada equipo y los tres
+   * futbolistas de los dos equipos con más puntos en las tres últimas jornadas.
+   */
+  previaDePartido(localId, visitanteId) {
+    const forma = (equipoId) =>
+      this.#db
+        .prepare(`
+          SELECT p.jornada, p.local_id, p.visitante_id, p.goles_local, p.goles_visitante,
+                 el.nombre AS local, ev.nombre AS visitante
+          FROM partidos p
+          LEFT JOIN equipos el ON el.id = p.local_id LEFT JOIN equipos ev ON ev.id = p.visitante_id
+          WHERE p.estado = 7 AND (p.local_id = ? OR p.visitante_id = ?)
+          ORDER BY p.fecha DESC LIMIT 5
+        `)
+        .all(String(equipoId), String(equipoId))
+        .map((p) => {
+          const enCasa = String(p.local_id) === String(equipoId);
+          const propios = enCasa ? p.goles_local : p.goles_visitante;
+          const ajenos = enCasa ? p.goles_visitante : p.goles_local;
+          return {
+            jornada: p.jornada,
+            rival: enCasa ? p.visitante : p.local,
+            enCasa,
+            marcador: `${p.goles_local}-${p.goles_visitante}`,
+            resultado: propios > ajenos ? 'V' : propios < ajenos ? 'D' : 'E',
+          };
+        });
+
+    const jornadas = this.#jornadasRecientes(3);
+    const huecos = jornadas.map(() => '?').join(', ') || 'NULL';
+    const vigilar = this.#db
+      .prepare(`
+        SELECT s.futbolista_id AS id, SUM(COALESCE(s.puntos, 0)) AS puntos,
+               GROUP_CONCAT(s.jornada || ':' || COALESCE(s.puntos, 0)) AS desglose
+        FROM estadistica_jornada s JOIN futbolistas f ON f.id = s.futbolista_id
+        WHERE s.jornada IN (${huecos}) AND f.equipo_real_id IN (?, ?) AND f.posicion_id != 5
+        GROUP BY s.futbolista_id ORDER BY puntos DESC LIMIT 3
+      `)
+      .all(...jornadas, String(localId), String(visitanteId))
+      .map((t) => ({
+        ...this.#fichaParaVideo(t.id),
+        metrica: { numero: String(t.puntos), etiqueta: `PUNTOS EN ${jornadas.length} JORNADAS`, corta: 'PTS' },
+        detalles: String(t.desglose)
+          .split(',')
+          .map((x) => x.split(':').map(Number))
+          .sort((a, b) => a[0] - b[0])
+          .map(([j, p]) => `J${j}: ${p}`),
+      }));
+
+    return { formaLocal: forma(localId), formaVisitante: forma(visitanteId), vigilar };
+  }
+
   /** Futbolistas que un manager tiene ahora mismo y no están en condiciones de jugar. */
   futbolistasConProblema(equipoId, estados = ['injured', 'suspended', 'doubtful']) {
     const huecos = estados.map(() => '?').join(', ');
@@ -631,7 +867,7 @@ export class Almacen {
    * finalizado. No puede usarse `actualizado_en` para eso: cambia en cada
    * lectura, así que nunca cumpliría la espera de quince minutos.
    */
-  guardarPartidos(partidos, jornada, estadoFinalizado) {
+  guardarPartidos(partidos, jornada, estadoFinalizado, { historico = false } = {}) {
     const sql = this.#db.prepare(`
       INSERT INTO partidos (id, jornada, fecha, local_id, visitante_id, estado, goles_local, goles_visitante, actualizado_en, finalizado_en)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -648,7 +884,10 @@ export class Almacen {
         const previo = this.#db
           .prepare('SELECT estado, goles_local, goles_visitante, finalizado_en FROM partidos WHERE id = ?')
           .get(p.id);
-        const finalizado = p.estadoBruto === estadoFinalizado ? previo?.finalizado_en || ahora() : previo?.finalizado_en || null;
+        // Al rellenar jornadas pasadas (historico), la hora de final es la del partido, no la de ahora:
+        // si no, el bot los tomaría por recién terminados y mandaría su resumen al grupo.
+        const finalizadoAhora = historico ? p.fecha : ahora();
+        const finalizado = p.estadoBruto === estadoFinalizado ? previo?.finalizado_en || finalizadoAhora : previo?.finalizado_en || null;
         sql.run(p.id, jornada, p.fecha, p.localId, p.visitanteId, p.estadoBruto, p.golesLocal, p.golesVisitante, ahora(), finalizado);
         if (previo && previo.estado !== p.estadoBruto) {
           cambios.push({ partidoId: p.id, estadoAntes: previo.estado, estadoAhora: p.estadoBruto });

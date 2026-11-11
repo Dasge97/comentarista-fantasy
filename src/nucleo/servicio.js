@@ -560,6 +560,12 @@ export class Servicio {
     }
 
     try {
+      await this.#rellenarPartidosPasados();
+    } catch (error) {
+      this.#anotar('aviso', `No se pudieron rellenar jornadas pasadas: ${error.message}`);
+    }
+
+    try {
       const jornada = await this.#jornadaActual();
       await this.#rellenarJornadasPasadas(jornada.numero);
       await this.#traerEquipos(jornada.numero);
@@ -673,7 +679,9 @@ export class Servicio {
         // Fantasy justo al empezar un partido: cuatro lecturas seguidas
         // fallaron y una asistencia se avisó una hora tarde.
         if (this.configurado && !this.#hayPrisa()) {
-          const traidos = await this.#traerPreciosHistoricos(20);
+          // Primero los precios; cuando no quedan, las estadísticas por jornada (una vez al día por futbolista).
+          let traidos = await this.#traerPreciosHistoricos(20);
+          if (traidos === 0) traidos = await this.#traerEstadisticas(20);
           if (traidos > 0) espera = 15000;
         } else {
           espera = 60000;
@@ -685,6 +693,44 @@ export class Servicio {
       }
       await new Promise((r) => setTimeout(r, espera));
     }
+  }
+
+  /**
+   * Una tanda de estadísticas por jornada (para los rankings y previas de los vídeos).
+   * Cada futbolista se pide una vez al día. Devuelve cuántos ha traído.
+   */
+  async #traerEstadisticas(porTanda) {
+    const pendientes = this.#almacen.futbolistasSinEstadisticas(porTanda);
+    let traidos = 0;
+    for (const id of pendientes) {
+      try {
+        this.#almacen.guardarEstadisticas(id, await this.#lector.estadisticasDeTemporada(id));
+        traidos += 1;
+      } catch {
+        // Un fallo suelto se reintenta en la siguiente tanda.
+      }
+    }
+    if (traidos > 0 && this.#almacen.cuantosSinEstadisticas() === 0) {
+      this.#anotar('info', 'Estadísticas por jornada al día.');
+    }
+    return traidos;
+  }
+
+  /**
+   * Rellena las jornadas pasadas que no están terminadas en la tabla de partidos (por ejemplo,
+   * las que se jugaron con el bot parado). Como mucho dos por llamada, para no cargar Fantasy.
+   */
+  async #rellenarPartidosPasados() {
+    const actual = await this.#jornadaActual();
+    let hechas = 0;
+    for (let j = 1; j < actual.numero && hechas < 2; j++) {
+      const partidos = this.#almacen.partidosDeLaJornada(j);
+      if (partidos.length > 0 && partidos.every((p) => p.estado === ESTADO_FINALIZADO)) continue;
+      const calendario = await this.#lector.calendario(j);
+      this.#almacen.guardarPartidos(calendario, j, ESTADO_FINALIZADO, { historico: true });
+      hechas += 1;
+    }
+    if (hechas > 0) this.#anotar('info', `Partidos de ${hechas} jornada(s) pasada(s) rellenados.`);
   }
 
   /** Si hay partido en marcha, las tareas de fondo se apartan. */

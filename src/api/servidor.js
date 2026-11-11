@@ -194,11 +194,15 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     return valor;
   }
 
-  /** Jornada pedida o, si no se pide, la última con algún partido terminado. */
-  async function jornadaDeContenido(pedida) {
+  /**
+   * Jornada pedida o, si no se pide, la última con algún partido terminado.
+   * Con proxima, la primera con algún partido por jugar (para las previas).
+   */
+  async function jornadaDeContenido(pedida, proxima = false) {
     if (Number(pedida) > 0) return Number(pedida);
     const actual = await servicio.lector.jornadaActual();
     const partidos = await conCache(`jornada-${actual.numero}`, () => servicio.lector.partidosDeJornada(actual.numero));
+    if (proxima) return partidos.some((p) => p.estado !== 7) ? actual.numero : actual.siguiente ?? actual.numero + 1;
     return partidos.some((p) => p.estado === 7) ? actual.numero : actual.anterior ?? actual.numero - 1;
   }
 
@@ -214,12 +218,38 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     golesVisitante: p.golesVisitante,
   });
 
-  // GET /api/contenido/partidos?jornada=12 → partidos de la jornada (por defecto, la última con alguno terminado)
+  // GET /api/contenido/partidos?jornada=12 → partidos de la jornada (por defecto, la última con alguno terminado;
+  // con ?proxima=1, la primera con alguno por jugar)
   app.get('/api/contenido/partidos', conTokenDeContenido, async (req, res) => {
     try {
-      const jornada = await jornadaDeContenido(req.query.jornada);
+      const jornada = await jornadaDeContenido(req.query.jornada, Boolean(req.query.proxima));
       const partidos = await conCache(`jornada-${jornada}`, () => servicio.lector.partidosDeJornada(jornada));
       res.json({ jornada, partidos: partidos.map(resumenDePartido) });
+    } catch (error) {
+      res.status(502).json({ error: `No se pudo leer Fantasy: ${error.message}` });
+    }
+  });
+
+  // GET /api/contenido/ranking?tipo=chollos&limite=5 → chollos, infravalorados, porteros, creadores o en-forma.
+  // Sale de las estadísticas por jornada guardadas (ver Almacen.rankingDeEstadisticas).
+  app.get('/api/contenido/ranking', conTokenDeContenido, (req, res) => {
+    const tipos = ['chollos', 'infravalorados', 'porteros', 'creadores', 'en-forma'];
+    if (!tipos.includes(req.query.tipo)) return res.status(400).json({ error: `Tipo de ranking: ${tipos.join(', ')}.` });
+    const limite = Math.min(Math.max(Number(req.query.limite) || 5, 1), 20);
+    res.json(almacen.rankingDeEstadisticas({ tipo: req.query.tipo, limite }));
+  });
+
+  // GET /api/contenido/previa?id=121&jornada=13 → un partido por jugar, los últimos cinco resultados de cada
+  // equipo y los tres a vigilar (más puntos en las tres últimas jornadas). Sin id, el próximo en jugarse.
+  app.get('/api/contenido/previa', conTokenDeContenido, async (req, res) => {
+    try {
+      const jornada = await jornadaDeContenido(req.query.jornada, true);
+      const partidos = await conCache(`jornada-${jornada}`, () => servicio.lector.partidosDeJornada(jornada));
+      const porJugar = partidos.filter((p) => p.estado !== TERMINADO).sort((a, b) => a.fecha.localeCompare(b.fecha));
+      const partido = req.query.id ? partidos.find((p) => p.id === String(req.query.id)) : porJugar[0];
+      if (!partido) return res.status(404).json({ error: 'No hay ese partido por jugar en esa jornada.' });
+      if (partido.estado === TERMINADO) return res.status(409).json({ error: 'Ese partido ya se ha jugado.' });
+      res.json({ partido: resumenDePartido(partido), ...almacen.previaDePartido(partido.local.id, partido.visitante.id) });
     } catch (error) {
       res.status(502).json({ error: `No se pudo leer Fantasy: ${error.message}` });
     }

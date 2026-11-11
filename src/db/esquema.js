@@ -327,4 +327,33 @@ export const MIGRACIONES = [
       ALTER TABLE futbolistas ADD COLUMN foto TEXT;
     `,
   },
+  {
+    // Lo que hizo cada futbolista en cada jornada, de toda la competición.
+    // Sale de /player/{id} (playerStats). Para los rankings de los vídeos
+    // (chollos, porteros, creadores, en forma) y la previa de los partidos.
+    // estadisticas guarda el objeto entero de Fantasy, por si hace falta otro dato.
+    nombre: '011-estadisticas-por-jornada',
+    sql: `
+      CREATE TABLE estadistica_jornada (
+        futbolista_id   TEXT NOT NULL,
+        jornada         INTEGER NOT NULL,
+        puntos          INTEGER,
+        minutos         INTEGER NOT NULL DEFAULT 0,
+        goles           INTEGER NOT NULL DEFAULT 0,
+        asistencias     INTEGER NOT NULL DEFAULT 0,
+        ocasiones       INTEGER NOT NULL DEFAULT 0,
+        entradas_area   INTEGER NOT NULL DEFAULT 0,
+        paradas         INTEGER NOT NULL DEFAULT 0,
+        goles_encajados INTEGER NOT NULL DEFAULT 0,
+        amarillas       INTEGER NOT NULL DEFAULT 0,
+        rojas           INTEGER NOT NULL DEFAULT 0,
+        once_ideal      INTEGER NOT NULL DEFAULT 0,
+        estadisticas    TEXT,
+        actualizado_en  TEXT NOT NULL,
+        PRIMARY KEY (futbolista_id, jornada)
+      );
+      CREATE INDEX idx_estadistica_jornada ON estadistica_jornada (jornada);
+      ALTER TABLE futbolistas ADD COLUMN estadisticas_traidas_en TEXT;
+    `,
+  },
 ];

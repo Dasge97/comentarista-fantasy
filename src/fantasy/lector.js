@@ -265,25 +265,43 @@ export class LectorFantasy {
     }));
   }
 
+  /**
+   * Lo que hizo un futbolista en cada jornada de la temporada: puntos, minutos,
+   * goles, asistencias, ocasiones, tarjetas, paradas. Una entrada por jornada jugada
+   * o convocada; las jornadas sin datos no vienen.
+   */
+  async estadisticasDeTemporada(futbolistaId) {
+    const datos = await this.#cliente.get(`${this.#cmp}/player/${futbolistaId}?x-lang=es`);
+    return (datos?.playerStats || []).map((s) => {
+      const n = (clave) => Number(s.stats?.[clave]?.[0] ?? 0);
+      return {
+        jornada: Number(s.weekNumber),
+        puntos: s.totalPoints != null ? Number(s.totalPoints) : null,
+        minutos: n('mins_played'),
+        goles: n('goals'),
+        asistencias: n('goal_assist'),
+        // offtarget_att_assist: pases que acaban en tiro (ocasiones creadas).
+        ocasiones: n('offtarget_att_assist'),
+        entradasArea: n('pen_area_entries'),
+        paradas: n('saves'),
+        golesEncajados: n('goals_conceded'),
+        penaltisParados: n('penalty_save'),
+        penaltisFallados: n('penalty_failed'),
+        golesEnPropia: n('own_goals'),
+        amarillas: n('yellow_card'),
+        rojas: n('red_card') + n('second_yellow_card'),
+        onceIdeal: Boolean(s.isInIdealFormation),
+        bruto: s.stats || null,
+      };
+    });
+  }
+
   /** Lo que hizo un futbolista en una jornada: puntos, minutos, goles, asistencias, tarjetas, paradas. */
   async estadisticasDeJornada(futbolistaId, jornada) {
-    const datos = await this.#cliente.get(`${this.#cmp}/player/${futbolistaId}?x-lang=es`);
-    const s = (datos?.playerStats || []).find((x) => Number(x.weekNumber) === Number(jornada));
+    const s = (await this.estadisticasDeTemporada(futbolistaId)).find((x) => x.jornada === Number(jornada));
     if (!s) return null;
-    const n = (clave) => Number(s.stats?.[clave]?.[0] ?? 0);
-    return {
-      puntos: s.totalPoints != null ? Number(s.totalPoints) : null,
-      minutos: n('mins_played'),
-      goles: n('goals'),
-      asistencias: n('goal_assist'),
-      paradas: n('saves'),
-      penaltisParados: n('penalty_save'),
-      penaltisFallados: n('penalty_failed'),
-      golesEnPropia: n('own_goals'),
-      amarillas: n('yellow_card'),
-      rojas: n('red_card') + n('second_yellow_card'),
-      onceIdeal: Boolean(s.isInIdealFormation),
-    };
+    const { jornada: _j, bruto: _b, ocasiones: _o, entradasArea: _e, golesEncajados: _g, ...resto } = s;
+    return resto;
   }
 
   /** Dinero de la cuenta propia. Para un rival responde HTTP 403. */
