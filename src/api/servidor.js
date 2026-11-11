@@ -243,8 +243,16 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
       ].filter((f) => f.puntos != null && f.posicionId !== 5);
       const ordenados = [...jugaron].sort((a, b) => b.puntos - a.puntos);
       const mejores = ordenados.slice(0, 3);
-      // El peor solo sale si de verdad lo hizo mal: puntos negativos o cero.
-      const peor = ordenados.length > 3 && ordenados[ordenados.length - 1].puntos <= 0 ? ordenados[ordenados.length - 1] : null;
+      const estadisticas = (f) => conCache(`ficha-${f.id}-${jornada}`, () => servicio.lector.estadisticasDeJornada(f.id, jornada));
+      // El peor solo sale si de verdad lo hizo mal (cero puntos o menos) y jugó: la lista de Fantasy
+      // trae también a los que no salieron del banquillo, con cero puntos. Se miran como mucho seis.
+      let peor = null;
+      for (const f of [...ordenados].reverse().filter((x) => x.puntos <= 0 && !mejores.includes(x)).slice(0, 6)) {
+        if ((await estadisticas(f))?.minutos > 0) {
+          peor = f;
+          break;
+        }
+      }
 
       const ficha = async (f) => ({
         id: f.id,
@@ -253,7 +261,7 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
         foto: f.foto,
         equipo: { nombre: f.equipo.nombre, escudo: f.equipo.escudo },
         puntos: f.puntos,
-        estadisticas: await conCache(`ficha-${f.id}-${jornada}`, () => servicio.lector.estadisticasDeJornada(f.id, jornada)),
+        estadisticas: await estadisticas(f),
       });
       res.json({
         partido: resumenDePartido(partido),
