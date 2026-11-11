@@ -182,6 +182,15 @@ export function crearServidor({ almacen, usuarios, config, servicio, telegram, d
     res.json(almacen.rankingDeMercado({ fecha, limite, valorMaximo }));
   });
 
+  // GET /api/contenido/estados?desde=2026-11-11T00:00:00Z&limite=10
+  // Futbolistas que se han lesionado, han caído en duda, han sido sancionados o han vuelto,
+  // desde esa fecha (por defecto, las últimas 24 horas). Para las historias de Instagram.
+  app.get('/api/contenido/estados', conTokenDeContenido, (req, res) => {
+    const desde = Number.isNaN(Date.parse(req.query.desde || '')) ? new Date(Date.now() - 86400000).toISOString() : new Date(req.query.desde).toISOString();
+    const limite = Math.min(Math.max(Number(req.query.limite) || 10, 1), 30);
+    res.json({ desde, cambios: almacen.cambiosDeEstado({ desde, limite }) });
+  });
+
   // Los partidos se leen de Fantasy en el momento, no de la base de datos:
   // la tabla de partidos solo tiene la jornada en curso. Se guarda 10 minutos
   // en memoria para no repetir consultas si se piden varias veces.

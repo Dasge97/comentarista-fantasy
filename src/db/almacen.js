@@ -455,11 +455,71 @@ export class Almacen {
         foto = COALESCE(excluded.foto, futbolistas.foto),
         actualizado_en = excluded.actualizado_en
     `);
+    // Estado guardado de cada uno, para anotar los cambios. Un futbolista nuevo
+    // en el catálogo no cuenta como cambio.
+    const previos = new Map(this.#db.prepare('SELECT id, estado FROM futbolistas').all().map((f) => [f.id, f.estado]));
+    const cambio = this.#db.prepare('INSERT INTO cambio_estado (futbolista_id, antes, ahora, detectado_en) VALUES (?, ?, ?, ?)');
     enTransaccion(this.#db, () => {
+      const cuando = ahora();
       for (const f of futbolistas) {
-        sql.run(f.id, f.nombre, f.posicionId, f.equipoRealId, f.estado, f.puntos ?? null, f.media ?? null, f.valor ?? null, f.foto ?? null, ahora());
+        if (previos.has(f.id) && f.estado && previos.get(f.id) !== f.estado) {
+          cambio.run(f.id, previos.get(f.id), f.estado, cuando);
+        }
+        sql.run(f.id, f.nombre, f.posicionId, f.equipoRealId, f.estado, f.puntos ?? null, f.media ?? null, f.valor ?? null, f.foto ?? null, cuando);
       }
     });
+  }
+
+  /**
+   * Cambios de estado de los futbolistas desde una fecha, para las historias de Instagram.
+   *
+   * Uno por futbolista: el estado de antes del primer cambio y el de ahora. Si ha vuelto a como
+   * estaba (por ejemplo, ok → doubtful → ok), no sale. Los que entran o salen de la liga
+   * (out_of_league) tampoco: no son lesiones. Ordenados por valor, de mayor a menor, que es lo que
+   * más interesa a quien juega.
+   *
+   * desde: fecha ISO. limite: cuántos como mucho.
+   */
+  cambiosDeEstado({ desde, limite = 10 }) {
+    const filas = this.#db.prepare(`
+      SELECT c.futbolista_id, c.antes, c.ahora, c.detectado_en
+      FROM cambio_estado c WHERE c.detectado_en >= ? ORDER BY c.id
+    `).all(desde);
+    const porFutbolista = new Map();
+    for (const c of filas) {
+      const previo = porFutbolista.get(c.futbolista_id);
+      if (previo) { previo.ahora = c.ahora; previo.detectado_en = c.detectado_en; }
+      else porFutbolista.set(c.futbolista_id, { ...c });
+    }
+    const POSICIONES = { 1: 'portero', 2: 'defensa', 3: 'centrocampista', 4: 'delantero', 5: 'entrenador' };
+    const ficha = this.#db.prepare(`
+      SELECT f.id, f.nombre, f.posicion_id, f.estado, f.foto, f.valor_actual, f.puntos_temporada, f.media,
+             e.nombre AS equipo, e.escudo
+      FROM futbolistas f LEFT JOIN equipos e ON e.id = f.equipo_real_id WHERE f.id = ?
+    `);
+    return [...porFutbolista.values()]
+      .filter((c) => c.antes !== c.ahora && c.antes !== 'out_of_league' && c.ahora !== 'out_of_league')
+      .map((c) => {
+        const f = ficha.get(c.futbolista_id);
+        if (!f) return null;
+        return {
+          id: f.id,
+          nombre: f.nombre,
+          posicion: POSICIONES[f.posicion_id] || null,
+          equipo: f.equipo,
+          escudo: f.escudo,
+          foto: f.foto,
+          valor: f.valor_actual,
+          puntos: f.puntos_temporada,
+          media: f.media,
+          antes: c.antes,
+          ahora: c.ahora,
+          detectadoEn: c.detectado_en,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (b.valor ?? 0) - (a.valor ?? 0))
+      .slice(0, limite);
   }
 
   /**

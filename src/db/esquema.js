@@ -356,4 +356,20 @@ export const MIGRACIONES = [
       ALTER TABLE futbolistas ADD COLUMN estadisticas_traidas_en TEXT;
     `,
   },
+  {
+    // Cada vez que cambia el estado de un futbolista (ok, doubtful, injured,
+    // suspended, out_of_league), en el momento en que el bot lo ve al refrescar
+    // el catálogo. Para las historias de Instagram de lesiones y vueltas.
+    nombre: '012-cambios-de-estado',
+    sql: `
+      CREATE TABLE cambio_estado (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        futbolista_id TEXT NOT NULL,
+        antes         TEXT,
+        ahora         TEXT,
+        detectado_en  TEXT NOT NULL
+      );
+      CREATE INDEX idx_cambio_estado_fecha ON cambio_estado (detectado_en);
+    `,
+  },
 ];
